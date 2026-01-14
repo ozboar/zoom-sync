@@ -8,14 +8,16 @@ license = "MIT"
 edition = "2021"
 
 [workspace]
-members = ["zoom65v3"]
+members = ["zoom-sync-core", "boards/zoom65v3"]
 
 [workspace.dependencies]
 chrono = "0.4.38" # local time
 
 [dependencies]
 # keyboard management
-zoom65v3 = { path = "./zoom65v3", version = "0.3" }
+zoom-sync-core = { path = "./zoom-sync-core" }
+zoom65v3 = { path = "./boards/zoom65v3", version = "0.3" }
+hidapi = { version = "2.6", features = ["windows-native"] } # board detection
 
 # runtime and scaffalding
 tokio = { version = "1.41", features = ["full"] }

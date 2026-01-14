@@ -8,6 +8,7 @@ license = "MIT"
 edition = "2021"
 
 [dependencies]
+zoom-sync-core = { path = "../../zoom-sync-core" }
 thiserror = "2.0"
 hidapi = { version = "2.6", features = ["windows-native"] }
 chrono.workspace = true

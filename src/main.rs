@@ -21,6 +21,7 @@ use crate::media::{encode_gif, encode_image};
 use crate::screen::{apply_screen, screen_args, screen_args_with_reactive, ScreenArgs};
 use crate::weather::{apply_weather, weather_args, WeatherArgs};
 
+mod detection;
 mod info;
 mod media;
 mod screen;

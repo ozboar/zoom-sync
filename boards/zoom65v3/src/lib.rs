@@ -3,12 +3,16 @@
 use std::sync::{LazyLock, RwLock};
 
 use checksum::checksum;
-use chrono::{DateTime, Datelike, TimeZone, Timelike};
+use chrono::{DateTime, Datelike, Local, TimeZone, Timelike};
 use float::DumbFloat16;
 use hidapi::{HidApi, HidDevice};
-use types::{ScreenPosition, ScreenTheme, UploadChannel, Zoom65Result};
+use types::{ScreenTheme, UploadChannel, Zoom65Result};
+use zoom_sync_core::{
+    Board, BoardInfo, HasGif, HasImage, HasScreen, HasScreenSize, HasSystemInfo, HasTime,
+    HasWeather, ScreenGroup, ScreenPosition as CoreScreenPosition, WeatherIcon,
+};
 
-use crate::types::{Icon, Zoom65Error};
+use crate::types::{Icon, ScreenPosition, Zoom65Error};
 
 pub mod abi;
 pub mod checksum;
@@ -21,6 +25,34 @@ pub mod consts {
     pub const ZOOM65_USAGE_PAGE: u16 = 65376;
     pub const ZOOM65_USAGE: u16 = 97;
 }
+
+/// Static board info for detection
+pub static INFO: BoardInfo = BoardInfo {
+    name: "Zoom65 V3",
+    cli_name: "zoom65v3",
+    vendor_id: consts::ZOOM65_VENDOR_ID,
+    product_id: consts::ZOOM65_PRODUCT_ID,
+    usage_page: Some(consts::ZOOM65_USAGE_PAGE),
+    usage: Some(consts::ZOOM65_USAGE),
+};
+
+/// Screen positions for this board
+pub static SCREEN_POSITIONS: &[CoreScreenPosition] = &[
+    CoreScreenPosition { id: "cpu", display_name: "CPU Temp", group: ScreenGroup::System },
+    CoreScreenPosition { id: "gpu", display_name: "GPU Temp", group: ScreenGroup::System },
+    CoreScreenPosition { id: "download", display_name: "Download", group: ScreenGroup::System },
+    CoreScreenPosition { id: "time", display_name: "Time", group: ScreenGroup::Time },
+    CoreScreenPosition { id: "weather", display_name: "Weather", group: ScreenGroup::Time },
+    CoreScreenPosition { id: "meletrix", display_name: "Meletrix", group: ScreenGroup::Logo },
+    CoreScreenPosition { id: "zoom65", display_name: "Zoom65", group: ScreenGroup::Logo },
+    CoreScreenPosition { id: "image", display_name: "Image", group: ScreenGroup::Logo },
+    CoreScreenPosition { id: "gif", display_name: "GIF", group: ScreenGroup::Logo },
+    CoreScreenPosition { id: "battery", display_name: "Battery", group: ScreenGroup::Battery },
+];
+
+/// Screen dimensions
+pub const SCREEN_WIDTH: u32 = 110;
+pub const SCREEN_HEIGHT: u32 = 110;
 
 /// Lazy handle to hidapi
 static API: LazyLock<RwLock<HidApi>> =
@@ -283,5 +315,163 @@ impl Zoom65v3 {
         (res[1] == 1 && res[2] == 1)
             .then_some(())
             .ok_or(Zoom65Error::UpdateCommandFailed)
+    }
+}
+
+// === Trait Implementations ===
+
+/// Convert CoreScreenPosition ID to types::ScreenPosition
+fn core_to_screen_position(pos: &CoreScreenPosition) -> Option<ScreenPosition> {
+    match pos.id {
+        "cpu" => Some(ScreenPosition::System(types::SystemOffset::CpuTemp)),
+        "gpu" => Some(ScreenPosition::System(types::SystemOffset::GpuTemp)),
+        "download" => Some(ScreenPosition::System(types::SystemOffset::Download)),
+        "time" => Some(ScreenPosition::Time(types::TimeOffset::Time)),
+        "weather" => Some(ScreenPosition::Time(types::TimeOffset::Weather)),
+        "meletrix" => Some(ScreenPosition::Logo(types::LogoOffset::Meletrix)),
+        "zoom65" => Some(ScreenPosition::Logo(types::LogoOffset::Zoom65)),
+        "image" => Some(ScreenPosition::Logo(types::LogoOffset::Image)),
+        "gif" => Some(ScreenPosition::Logo(types::LogoOffset::Gif)),
+        "battery" => Some(ScreenPosition::Battery),
+        _ => None,
+    }
+}
+
+/// Convert WeatherIcon to types::Icon
+fn weather_icon_to_icon(icon: WeatherIcon) -> Icon {
+    match icon {
+        WeatherIcon::DayClear => Icon::DayClear,
+        WeatherIcon::DayPartlyCloudy => Icon::DayPartlyCloudy,
+        WeatherIcon::DayPartlyRainy => Icon::DayPartlyRainy,
+        WeatherIcon::NightPartlyCloudy => Icon::NightPartlyCloudy,
+        WeatherIcon::NightClear => Icon::NightClear,
+        WeatherIcon::Cloudy => Icon::Cloudy,
+        WeatherIcon::Rainy => Icon::Rainy,
+        WeatherIcon::Snowfall => Icon::Snowfall,
+        WeatherIcon::Thunderstorm => Icon::Thunderstorm,
+    }
+}
+
+impl Board for Zoom65v3 {
+    fn info(&self) -> &'static BoardInfo {
+        &INFO
+    }
+
+    fn as_time(&mut self) -> Option<&mut dyn HasTime> {
+        Some(self)
+    }
+
+    fn as_weather(&mut self) -> Option<&mut dyn HasWeather> {
+        Some(self)
+    }
+
+    fn as_system_info(&mut self) -> Option<&mut dyn HasSystemInfo> {
+        Some(self)
+    }
+
+    fn as_screen(&mut self) -> Option<&mut dyn HasScreen> {
+        Some(self)
+    }
+
+    fn as_screen_size(&self) -> Option<(u32, u32)> {
+        Some((SCREEN_WIDTH, SCREEN_HEIGHT))
+    }
+
+    fn as_image(&mut self) -> Option<&mut dyn HasImage> {
+        Some(self)
+    }
+
+    fn as_gif(&mut self) -> Option<&mut dyn HasGif> {
+        Some(self)
+    }
+}
+
+impl HasTime for Zoom65v3 {
+    fn set_time(&mut self, time: DateTime<Local>, use_12hr: bool) -> zoom_sync_core::Result<()> {
+        Zoom65v3::set_time(self, time, use_12hr)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+    }
+}
+
+impl HasWeather for Zoom65v3 {
+    fn set_weather(
+        &mut self,
+        icon: WeatherIcon,
+        current: u8,
+        low: u8,
+        high: u8,
+    ) -> zoom_sync_core::Result<()> {
+        Zoom65v3::set_weather(self, weather_icon_to_icon(icon), current, low, high)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+    }
+}
+
+impl HasSystemInfo for Zoom65v3 {
+    fn set_system_info(&mut self, cpu: u8, gpu: u8, download: f32) -> zoom_sync_core::Result<()> {
+        Zoom65v3::set_system_info(self, cpu, gpu, download)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+    }
+}
+
+impl HasScreen for Zoom65v3 {
+    fn screen_positions(&self) -> &'static [CoreScreenPosition] {
+        SCREEN_POSITIONS
+    }
+
+    fn set_screen(&mut self, position: &CoreScreenPosition) -> zoom_sync_core::Result<()> {
+        let pos = core_to_screen_position(position)
+            .ok_or_else(|| format!("invalid screen position: {}", position.id))?;
+        Zoom65v3::set_screen(self, pos)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+    }
+
+    fn screen_up(&mut self) -> zoom_sync_core::Result<()> {
+        Zoom65v3::screen_up(self)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+    }
+
+    fn screen_down(&mut self) -> zoom_sync_core::Result<()> {
+        Zoom65v3::screen_down(self)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+    }
+
+    fn screen_switch(&mut self) -> zoom_sync_core::Result<()> {
+        Zoom65v3::screen_switch(self)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+    }
+
+    fn reset_screen(&mut self) -> zoom_sync_core::Result<()> {
+        Zoom65v3::reset_screen(self)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+    }
+}
+
+impl HasScreenSize for Zoom65v3 {
+    fn screen_size(&self) -> (u32, u32) {
+        (SCREEN_WIDTH, SCREEN_HEIGHT)
+    }
+}
+
+impl HasImage for Zoom65v3 {
+    fn upload_image(&mut self, data: &[u8], progress: &dyn Fn(usize)) -> zoom_sync_core::Result<()> {
+        Zoom65v3::upload_image(self, data, progress)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+    }
+
+    fn clear_image(&mut self) -> zoom_sync_core::Result<()> {
+        Zoom65v3::clear_image(self)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+    }
+}
+
+impl HasGif for Zoom65v3 {
+    fn upload_gif(&mut self, data: &[u8], progress: &dyn Fn(usize)) -> zoom_sync_core::Result<()> {
+        Zoom65v3::upload_gif(self, data, progress)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+    }
+
+    fn clear_gif(&mut self) -> zoom_sync_core::Result<()> {
+        Zoom65v3::clear_gif(self)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
     }
 }
