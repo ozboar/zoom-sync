@@ -42,6 +42,19 @@ open-meteo-api = "0.1.4" # free weather api
 nvml-wrapper = "0.10.0" # nvidia gpu temp
 sysinfo = "0.33.1" # cpu temp
 
+# system tray
+tray-icon = "0.17"
+muda = "0.14"
+rfd = { version = "0.14", default-features = false, features = ["gtk3"] }
+crossbeam-channel = "0.5"
+
+# config persistence
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+directories = "5.0"
+humantime-serde = "1.1"
+
 [target.'cfg(target_os = "linux")'.dependencies]
 evdev = { version = "0.12.2", features = ["tokio"] } # reading keypress events on linux
+gtk = "0.18"  # required for tray icon initialization
 

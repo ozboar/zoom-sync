@@ -3960,7 +3960,6 @@ dependencies = [
  "futures",
  "gif",
  "gtk",
- "hidapi",
  "humantime",
  "humantime-serde",
  "image",
@@ -3977,16 +3976,7 @@ dependencies = [
  "tokio-stream",
  "toml",
  "tray-icon",
- "zoom-sync-core",
  "zoom65v3",
-]
-
-[[package]]
-name = "zoom-sync-core"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "thiserror 2.0.3",
 ]
 
 [[package]]
@@ -3996,7 +3986,6 @@ dependencies = [
  "chrono",
  "hidapi",
  "thiserror 2.0.3",
- "zoom-sync-core",
 ]
 
 [[package]]
