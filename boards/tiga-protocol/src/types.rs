@@ -1,4 +1,4 @@
-//! Type definitions for Zoom TKL Dyna keyboard.
+//! Type definitions for Tiga-based keyboards.
 
 /// Weather condition icons for the keyboard display.
 /// These map to the display icon indices.

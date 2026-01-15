@@ -15,15 +15,13 @@ use hidapi::{HidApi, HidDevice};
 use image::codecs::gif::GifDecoder;
 use image::AnimationDecoder;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use types::{encode_temperature, Rgb565, ScreenMode, WeatherIcon};
 use zoom_sync_core::{
     Board, BoardError, BoardInfo, Capabilities, HasGif, HasImage, HasTheme, HasTime, HasWeather,
     Result,
 };
+use zoom_tiga_protocol::{encode_temperature, Rgb565, ScreenMode, WeatherIcon};
 
-pub mod abi;
-pub mod crc;
-pub mod types;
+pub use zoom_tiga_protocol::{self as protocol, SCREEN_HEIGHT, SCREEN_WIDTH};
 
 pub mod consts {
     /// USB Vendor ID
@@ -54,10 +52,6 @@ pub static INFO: BoardInfo = BoardInfo {
         gif: true,
     },
 };
-
-/// Screen dimensions
-pub const SCREEN_WIDTH: u32 = 320;
-pub const SCREEN_HEIGHT: u32 = 172;
 
 /// Encode a raw GIF buffer as RGB565 with frame delays for TKL Dyna.
 ///
@@ -185,7 +179,7 @@ impl ZoomTklDyna {
 
     /// Sync the current date and time to the keyboard display.
     pub fn set_time<Tz: TimeZone>(&mut self, time: DateTime<Tz>) -> Result<()> {
-        let packet = abi::datetime(
+        let packet = protocol::datetime(
             time.year() as u16,
             time.month() as u8,
             time.day() as u8,
@@ -205,7 +199,7 @@ impl ZoomTklDyna {
         low: i16,
         high: i16,
     ) -> Result<()> {
-        let packet = abi::weather(
+        let packet = protocol::weather(
             icon,
             encode_temperature(current),
             encode_temperature(high),
@@ -216,13 +210,13 @@ impl ZoomTklDyna {
 
     /// Set the screen theme colors.
     pub fn set_theme(&mut self, bg_color: Rgb565, font_color: Rgb565, theme_id: u8) -> Result<()> {
-        let packet = abi::theme(bg_color, font_color, theme_id);
+        let packet = protocol::theme(bg_color, font_color, theme_id);
         self.execute(packet)
     }
 
     /// Send a screen control command.
     pub fn screen_control(&mut self, mode: ScreenMode) -> Result<()> {
-        let packet = abi::screen_control(mode);
+        let packet = protocol::screen_control(mode);
         self.execute(packet)
     }
 
@@ -262,12 +256,12 @@ impl ZoomTklDyna {
         // Send each chunk
         for (page_index, chunk) in data.chunks(CHUNK_SIZE).enumerate() {
             cb(page_index);
-            let packet = abi::image_chunk(page_index as u16, chunk);
+            let packet = protocol::image_chunk(page_index as u16, chunk);
             self.execute(packet)?;
         }
 
         // Send termination packet
-        let packet = abi::image_end();
+        let packet = protocol::image_end();
         self.execute(packet)?;
 
         cb(page_count);
@@ -350,7 +344,7 @@ impl HasImage for ZoomTklDyna {
 
     fn clear_image(&mut self) -> Result<()> {
         // Send empty termination to clear
-        let packet = abi::image_end();
+        let packet = protocol::image_end();
         self.execute(packet)
     }
 }
