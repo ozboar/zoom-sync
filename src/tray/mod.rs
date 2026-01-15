@@ -87,6 +87,12 @@ async fn async_tray_app() -> Result<(), Box<dyn Error>> {
         .with_icon(icon)
         .build()?;
 
+    // Process GTK events to render tray icon before entering main loop
+    #[cfg(target_os = "linux")]
+    while gtk::events_pending() {
+        gtk::main_iteration_do(false);
+    }
+
     // Get menu event receiver
     let menu_rx = MenuEvent::receiver();
 
