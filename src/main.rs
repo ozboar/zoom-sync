@@ -223,7 +223,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                             board
                                 .as_image()
                                 .ok_or("board does not support images")?
-                                .upload_image(&encoded, &|i| {
+                                .upload_image(&encoded, &mut |i| {
                                     print!("\ruploading {len} bytes ({i:fmt_width$}/{total}) ... ");
                                     stdout().flush().unwrap();
                                 })?;
@@ -286,7 +286,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                             board
                                 .as_gif()
                                 .ok_or("board does not support gifs")?
-                                .upload_gif(&encoded, &|i| {
+                                .upload_gif(&encoded, &mut |i| {
                                     print!("\ruploading {len} bytes ({i:fmt_width$}/{total}) ... ");
                                     stdout().flush().unwrap();
                                 })?;

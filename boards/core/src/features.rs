@@ -76,12 +76,12 @@ pub trait HasScreenSize {
 
 /// Static image upload capability
 pub trait HasImage {
-    fn upload_image(&mut self, data: &[u8], progress: &dyn Fn(usize)) -> Result<()>;
+    fn upload_image(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()>;
     fn clear_image(&mut self) -> Result<()>;
 }
 
 /// Animated GIF upload capability
 pub trait HasGif {
-    fn upload_gif(&mut self, data: &[u8], progress: &dyn Fn(usize)) -> Result<()>;
+    fn upload_gif(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()>;
     fn clear_gif(&mut self) -> Result<()>;
 }

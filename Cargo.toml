@@ -47,6 +47,7 @@ sysinfo = "0.33.1" # cpu temp
 tray-icon = { version = "0.17", default-features = false }
 muda = { version = "0.14", default-features = false }
 rfd = "0.17"
+notify-rust = "4"
 
 # errors
 thiserror = "2"

@@ -255,7 +255,7 @@ impl Zoom65v3 {
         &mut self,
         buf: impl AsRef<[u8]>,
         channel: UploadChannel,
-        cb: impl Fn(usize),
+        cb: &mut dyn FnMut(usize),
     ) -> Result<()> {
         let image = buf.as_ref();
 
@@ -320,23 +320,23 @@ impl Zoom65v3 {
 
     /// Upload an image to the keyboard. Must be encoded as 110x110 RGBA-3328 raw buffer
     #[inline(always)]
-    pub fn upload_image(&mut self, buf: impl AsRef<[u8]>, cb: impl Fn(usize)) -> Result<()> {
+    pub fn upload_image(&mut self, buf: impl AsRef<[u8]>, mut cb: impl FnMut(usize)) -> Result<()> {
         let buf = buf.as_ref();
         if buf.len() != 36300 {
             return Err(BoardError::MediaTooLarge(
                 "image must be exactly 36300 bytes",
             ));
         }
-        self.upload_media(buf, UploadChannel::Image, cb)
+        self.upload_media(buf, UploadChannel::Image, &mut cb)
     }
 
     /// Upload a gif to the keyboard. Must be 111x111.
     #[inline(always)]
-    pub fn upload_gif(&mut self, buf: impl AsRef<[u8]>, cb: impl Fn(usize)) -> Result<()> {
+    pub fn upload_gif(&mut self, buf: impl AsRef<[u8]>, mut cb: impl FnMut(usize)) -> Result<()> {
         if buf.as_ref().len() >= 1013808 {
             return Err(BoardError::MediaTooLarge("gif exceeds device limit"));
         }
-        self.upload_media(buf, UploadChannel::Gif, cb)
+        self.upload_media(buf, UploadChannel::Gif, &mut cb)
     }
 
     /// Clear the image slot
@@ -447,7 +447,7 @@ impl HasScreenSize for Zoom65v3 {
 }
 
 impl HasImage for Zoom65v3 {
-    fn upload_image(&mut self, data: &[u8], progress: &dyn Fn(usize)) -> Result<()> {
+    fn upload_image(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()> {
         Zoom65v3::upload_image(self, data, progress)
     }
 
@@ -457,7 +457,7 @@ impl HasImage for Zoom65v3 {
 }
 
 impl HasGif for Zoom65v3 {
-    fn upload_gif(&mut self, data: &[u8], progress: &dyn Fn(usize)) -> Result<()> {
+    fn upload_gif(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()> {
         Zoom65v3::upload_gif(self, data, progress)
     }
 
