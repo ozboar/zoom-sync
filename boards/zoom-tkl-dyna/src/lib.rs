@@ -161,7 +161,12 @@ impl ZoomTklDyna {
         let this = Self {
             device: api
                 .device_list()
-                .find(|d| d.usage_page() == consts::USAGE_PAGE && d.usage() == consts::USAGE)
+                .find(|d| {
+                    d.vendor_id() == consts::VENDOR_ID
+                        && d.product_id() == consts::PRODUCT_ID
+                        && d.usage_page() == consts::USAGE_PAGE
+                        && d.usage() == consts::USAGE
+                })
                 .ok_or(BoardError::DeviceNotFound)?
                 .open_device(&api)?,
             buf: [0u8; 64],
