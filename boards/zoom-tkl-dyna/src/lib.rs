@@ -15,15 +15,13 @@ use hidapi::{HidApi, HidDevice};
 use image::codecs::gif::GifDecoder;
 use image::{imageops, AnimationDecoder};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use types::{encode_temperature, Rgb565, ScreenMode, WeatherIcon};
 use zoom_sync_core::{
     Board, BoardError, BoardInfo, Capabilities, HasGif, HasImage, HasScreenNavigation,
     HasSystemInfo, HasTheme, HasTime, HasWeather, Result,
 };
+use zoom_tiga_protocol::{encode_temperature, Rgb565, ScreenMode, WeatherIcon};
 
-pub mod abi;
-pub mod crc;
-pub mod types;
+pub use zoom_tiga_protocol::{self as protocol, SCREEN_HEIGHT, SCREEN_WIDTH};
 
 pub mod consts {
     /// USB Vendor ID
@@ -56,9 +54,6 @@ pub static INFO: BoardInfo = BoardInfo {
     },
 };
 
-/// Screen dimensions
-pub const SCREEN_WIDTH: u32 = 320;
-pub const SCREEN_HEIGHT: u32 = 172;
 
 /// Size of the header prepended to uploaded media
 const MEDIA_HEADER_LEN: usize = 452;
@@ -151,7 +146,7 @@ impl ZoomTklDyna {
         };
 
         // Same info query the web driver sends on connect
-        this.execute(abi::info())?;
+        this.execute(protocol::info())?;
 
         Ok(this)
     }
@@ -194,7 +189,7 @@ impl ZoomTklDyna {
     fn execute_upload(&mut self, packet: [u8; 33]) -> Result<()> {
         for _ in 0..UPLOAD_ATTEMPTS {
             self.device.write(&packet)?;
-            if self.wait_for(abi::cmd::IMAGE, UPLOAD_TIMEOUT)? {
+            if self.wait_for(protocol::cmd::IMAGE, UPLOAD_TIMEOUT)? {
                 return Ok(());
             }
         }
@@ -205,7 +200,7 @@ impl ZoomTklDyna {
 
     /// Sync the current date and time to the keyboard display.
     pub fn set_time<Tz: TimeZone>(&mut self, time: DateTime<Tz>) -> Result<()> {
-        let packet = abi::datetime(
+        let packet = protocol::datetime(
             time.year() as u16,
             time.month() as u8,
             time.day() as u8,
@@ -225,7 +220,7 @@ impl ZoomTklDyna {
         low: i16,
         high: i16,
     ) -> Result<()> {
-        let packet = abi::weather(
+        let packet = protocol::weather(
             icon,
             encode_temperature(current),
             encode_temperature(high),
@@ -249,20 +244,20 @@ impl ZoomTklDyna {
         }
 
         let packet =
-            abi::set_system_info(cpu_temp, gpu_temp, download_rate, gpu_fan_speed_adjusted);
+            protocol::set_system_info(cpu_temp, gpu_temp, download_rate, gpu_fan_speed_adjusted);
         self.execute(packet)
     }
 
     /// Set the screen theme colors.
     /// For TKL Dyna, this sets the reactive typing color themeing built into the screen.
     pub fn set_theme(&mut self, bg_color: Rgb565, font_color: Rgb565, theme_id: u8) -> Result<()> {
-        let packet = abi::theme(bg_color, font_color, theme_id);
+        let packet = protocol::theme(bg_color, font_color, theme_id);
         self.execute(packet)
     }
 
     /// Send a screen navigation command.
     pub fn screen_control(&mut self, mode: ScreenMode) -> Result<()> {
-        let packet = abi::screen_control(mode);
+        let packet = protocol::screen_control(mode);
         self.execute(packet)
     }
 
@@ -288,9 +283,9 @@ impl ZoomTklDyna {
 
     /// Restart the screen module.
     pub fn restart_screen(&mut self) -> Result<()> {
-        self.execute(abi::restart())?;
+        self.execute(protocol::restart())?;
         std::thread::sleep(Duration::from_millis(100));
-        self.execute(abi::info())
+        self.execute(protocol::info())
     }
 
     /// Upload media to the keyboard screen.
@@ -314,9 +309,9 @@ impl ZoomTklDyna {
         for (page_index, chunk) in data.chunks(PAGE_SIZE).enumerate() {
             cb(page_index);
             // The page index wraps past u16::MAX, matching the web driver
-            self.execute_upload(abi::image_chunk(page_index as u16, chunk))?;
+            self.execute_upload(protocol::image_chunk(page_index as u16, chunk))?;
         }
-        self.execute_upload(abi::image_end())?;
+        self.execute_upload(protocol::image_end())?;
 
         cb(page_count);
         Ok(())
