@@ -183,7 +183,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     match cli.command {
         Command::Tray => {
             let _lock = lock::Lock::acquire()?;
-            tray::run_tray_app()
+            tray::run_tray_app(cli.board)
         },
         Command::Set { set_command } => {
             let rt = tokio::runtime::Runtime::new()?;

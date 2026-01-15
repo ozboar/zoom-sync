@@ -51,14 +51,14 @@ pub enum ImageProcessingError {
 }
 
 /// Run the tray application
-pub fn run_tray_app() -> Result<(), Box<dyn Error>> {
+pub fn run_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
-    rt.block_on(async_tray_app())
+    rt.block_on(async_tray_app(board_kind))
 }
 
-async fn async_tray_app() -> Result<(), Box<dyn Error>> {
+async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
     // Initialize GTK (required for libappindicator on Linux)
     #[cfg(target_os = "linux")]
     gtk::init()?;
@@ -245,7 +245,7 @@ async fn async_tray_app() -> Result<(), Box<dyn Error>> {
 
             // Try to connect if disconnected
             _ = retry_interval.tick(), if board.is_none() => {
-                match BoardKind::Auto.as_board() {
+                match board_kind.as_board() {
                     Ok(mut b) => {
                         println!("connected to {}", b.info().name);
                         state.connection = ConnectionStatus::Connected;
