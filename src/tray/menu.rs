@@ -6,6 +6,8 @@ use muda::{
 };
 use zoom_sync_core::Board;
 
+use crate::tray::load_icon;
+
 use super::commands::{TrayCommand, TrayState};
 
 /// Menu item IDs for event handling
@@ -91,8 +93,12 @@ impl MenuItems {
             Some(b) => {
                 let has_screen = b.as_screen().is_some();
                 let has_media = b.as_image().is_some() || b.as_gif().is_some();
-                (format!("{} Connected", b.info().name), has_screen, has_media)
-            }
+                (
+                    format!("{} Connected", b.info().name),
+                    has_screen,
+                    has_media,
+                )
+            },
             None => ("Disconnected".to_string(), false, false),
         };
         self.status.set_text(status_text);
@@ -112,9 +118,15 @@ impl MenuItems {
         // Add/remove media menu based on feature
         let media_visible = self.media_menu_visible.get();
         // Position after: status, separator, [screen, nav]
-        let media_position = if self.screen_menus_visible.get() { 4 } else { 2 };
+        let media_position = if self.screen_menus_visible.get() {
+            4
+        } else {
+            2
+        };
         if has_media && !media_visible {
-            self.menu.insert(&self.media_submenu, media_position).unwrap();
+            self.menu
+                .insert(&self.media_submenu, media_position)
+                .unwrap();
             self.media_menu_visible.set(true);
         } else if !has_media && media_visible {
             self.menu.remove(&self.media_submenu).unwrap();
@@ -410,13 +422,19 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
 
     // About and Quit
     menu.append(&PredefinedMenuItem::about(
-        Some("About zoom-sync"),
+        Some("About Zoom Sync"),
         Some(AboutMetadata {
-            name: Some("zoom-sync".into()),
-            version: Some(env!("CARGO_PKG_VERSION").into()),
-            authors: Some(vec!["ozwaldorf".into()]),
+            name: Some("Zoom Sync".into()),
+            version: Some(concat!("v", env!("CARGO_PKG_VERSION")).into()),
             website: Some("https://github.com/ozwaldorf/zoom-sync".into()),
-            ..Default::default()
+            copyright: Some("(c) Ossian Mapes 2025, Licensed under MIT".into()),
+            comments: Some("Zoom Sync is not affiliated with any company.\nMeletrix logo owned and copyrighted by Wuque Studio.".into()),
+            short_version: None,
+            authors: None,
+            license: None,
+            website_label: None,
+            credits: None,
+            icon: None,
         }),
     ))
     .unwrap();
@@ -428,7 +446,7 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
     ))
     .unwrap();
 
-    let items = MenuItems {
+    MenuItems {
         menu,
         status,
         screen_submenu,
@@ -452,10 +470,7 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
         toggle_fahrenheit,
         #[cfg(target_os = "linux")]
         toggle_reactive,
-    };
-
-    // Initial state is disconnected - menus will be added when board connects
-    items
+    }
 }
 
 /// Menu event that may require async handling
