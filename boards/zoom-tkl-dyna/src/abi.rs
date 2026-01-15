@@ -55,8 +55,8 @@ pub fn build_packet(command: u8, payload: &[u8], sub_type: u8) -> [u8; 32] {
 
     // Calculate checksum (sum of bytes 9+ XOR 0xFF)
     let mut checksum: u16 = 0;
-    for i in 9..32 {
-        checksum += packet[i] as u16;
+    for &byte in packet.iter().skip(9) {
+        checksum += byte as u16;
     }
     let checksum_pos = 12 + data_length;
     if checksum_pos < 32 {
@@ -97,24 +97,23 @@ pub fn datetime(
     day_of_week: u8,
 ) -> [u8; 32] {
     let payload = [
-        0x00,                  // Unknown flag 1
-        0x01,                  // Unknown flag 2
-        (year >> 8) as u8,     // Year high byte
-        (year & 0xFF) as u8,   // Year low byte
-        month,                 // Month (1-12)
-        day,                   // Day of month
-        hour,                  // Hours (0-23)
-        minute,                // Minutes (0-59)
-        second,                // Seconds (0-59)
-        day_of_week,           // Day of week (0=Sun)
+        0x00,                // Unknown flag 1
+        0x01,                // Unknown flag 2
+        (year >> 8) as u8,   // Year high byte
+        (year & 0xFF) as u8, // Year low byte
+        month,               // Month (1-12)
+        day,                 // Day of month
+        hour,                // Hours (0-23)
+        minute,              // Minutes (0-59)
+        second,              // Seconds (0-59)
+        day_of_week,         // Day of week (0=Sun)
     ];
     build_packet(cmd::DATETIME, &payload, 0x03)
 }
 
 /// Build a screen control packet.
 pub fn screen_control(mode: ScreenMode) -> [u8; 32] {
-    let payload = [0x00, mode as u8];
-    build_packet(cmd::SCREEN, &payload, 0x02)
+    build_packet(cmd::SCREEN, &mode.to_bytes(), 0x02)
 }
 
 /// Build a theme settings packet.
@@ -160,11 +159,7 @@ pub fn weather(icon: WeatherIcon, current: u16, max: u16, min: u16) -> [u8; 32] 
 /// - Bytes 1-2: Page index (big-endian)
 /// - Bytes 3+: Chunk data (up to 16 bytes)
 pub fn image_chunk(page_index: u16, chunk: &[u8]) -> [u8; 32] {
-    let mut payload = vec![
-        0x00,
-        (page_index >> 8) as u8,
-        (page_index & 0xFF) as u8,
-    ];
+    let mut payload = vec![0x00, (page_index >> 8) as u8, (page_index & 0xFF) as u8];
     payload.extend_from_slice(chunk);
     build_packet(cmd::IMAGE, &payload, 0x02)
 }

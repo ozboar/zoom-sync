@@ -4791,6 +4791,9 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "hidapi",
+ "image",
+ "rayon",
+ "rgb565",
  "zoom-sync-core",
 ]
 

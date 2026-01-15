@@ -447,7 +447,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                             .ok_or("failed to decode animation")?;
                             println!("done");
 
-                            // re-encode and upload to keyboard
+                            // re-encode to resized standard gif and upload
                             let encoded = encode_gif(frames, bg.0, nearest, width, height)
                                 .ok_or("failed to encode gif image")?;
                             let len = encoded.len();

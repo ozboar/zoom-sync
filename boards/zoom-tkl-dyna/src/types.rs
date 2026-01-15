@@ -58,16 +58,34 @@ impl WeatherIcon {
 }
 
 /// Screen control modes.
-/// These correspond to the 0x39 command sub-modes.
+/// These correspond to the 0x39 command with two-byte payload.
+/// The second byte is a checksum: 0xC4 - first_byte for navigation, 0xC8 for reset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
 pub enum ScreenMode {
-    /// Mode 2 - possibly refresh/toggle
-    Refresh = 2,
-    /// Mode 3 - possibly next theme / screen on
-    Next = 3,
-    /// Mode 4 - possibly prev theme / screen off
-    Previous = 4,
+    /// Navigate up in menu (cmd=2)
+    Up,
+    /// Navigate down in menu (cmd=1)
+    Down,
+    /// Enter/select menu item (cmd=3)
+    Enter,
+    /// Return/back from menu (cmd=4)
+    Return,
+    /// Reset themes, gifs and images (cmd=1, special checksum)
+    Reset,
+}
+
+impl ScreenMode {
+    /// Get the two-byte payload for this screen mode.
+    /// Format: [command, checksum] where checksum = 0xC4 - command (or 0xC8 for reset)
+    pub fn to_bytes(self) -> [u8; 2] {
+        match self {
+            ScreenMode::Up => [0x02, 0xC4 - 0x02],
+            ScreenMode::Down => [0x01, 0xC4 - 0x01],
+            ScreenMode::Enter => [0x03, 0xC4 - 0x03],
+            ScreenMode::Return => [0x04, 0xC4 - 0x04],
+            ScreenMode::Reset => [0x01, 0xC8],
+        }
+    }
 }
 
 /// Encode a temperature value for the keyboard protocol.

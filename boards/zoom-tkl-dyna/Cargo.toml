@@ -11,3 +11,6 @@ edition = "2021"
 zoom-sync-core = { path = "../../zoom-sync-core" }
 hidapi = { workspace = true }
 chrono = { workspace = true }
+image = "0.25.5"
+rayon = "1.10.0"
+rgb565 = "0.1.3"
