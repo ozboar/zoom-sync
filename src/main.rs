@@ -40,17 +40,14 @@ No effect on any manually provided data.",
 /// Pre-parse board kind from args before full parsing
 fn pre_parse_board() -> BoardKind {
     let args: Vec<String> = std::env::args().collect();
-    for (i, arg) in args.iter().enumerate() {
-        if arg == "-b" || arg == "--board" {
-            if let Some(board_str) = args.get(i + 1) {
-                if let Ok(kind) = board_str.parse() {
-                    return kind;
-                }
-            }
-        } else if let Some(board_str) = arg.strip_prefix("--board=") {
-            if let Ok(kind) = board_str.parse() {
-                return kind;
-            }
+
+    for arg in &args {
+        match arg.as_str() {
+            "--auto" => return BoardKind::Auto,
+            "--zoom65v3" => return BoardKind::Zoom65v3,
+            "--zoom-tkl-dyna" => return BoardKind::ZoomTklDyna,
+            "--zoom75-tiga" => return BoardKind::Zoom75Tiga,
+            _ => {},
         }
     }
     BoardKind::Auto

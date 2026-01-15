@@ -1,0 +1,268 @@
+//! High level hidapi abstraction for interacting with Zoom75 Tiga screen modules.
+//!
+//! This crate provides reverse-engineered bindings to control the Zoom75 Tiga keyboard's
+//! built-in display via HID. The protocol uses CRC-16/CCITT-FALSE checksums with a 32-byte
+//! packet structure.
+//!
+//! Screen size: 320x172 pixels, RGB565 format.
+
+use std::sync::{LazyLock, RwLock};
+
+use chrono::{DateTime, Datelike, Local, TimeZone, Timelike};
+use hidapi::HidApi;
+use zoom_sync_core::{
+    Board, BoardError, BoardInfo, Capabilities, HasGif, HasImage, HasScreenNavigation, HasTheme,
+    HasTime, HasWeather, Result,
+};
+use zoom_tiga_protocol::{
+    encode_gif, encode_temperature, frame_from_rgb565a, Rgb565, ScreenMode, TigaDevice,
+    WeatherIcon,
+};
+
+pub use zoom_tiga_protocol::{self as protocol, SCREEN_HEIGHT, SCREEN_WIDTH};
+
+pub mod consts {
+    /// USB Vendor ID
+    pub const VENDOR_ID: u16 = 0x1EA7;
+    /// USB Product ID
+    pub const PRODUCT_ID: u16 = 0xCEDD;
+    /// HID usage page
+    pub const USAGE_PAGE: u16 = 65376;
+    /// HID usage
+    pub const USAGE: u16 = 97;
+}
+
+/// Static board info for detection
+pub static INFO: BoardInfo = BoardInfo {
+    name: "Zoom75 Tiga",
+    cli_name: "zoom75-tiga",
+    vendor_id: Some(consts::VENDOR_ID),
+    product_id: Some(consts::PRODUCT_ID),
+    usage_page: Some(consts::USAGE_PAGE),
+    usage: Some(consts::USAGE),
+    capabilities: Capabilities {
+        theme: true,
+        time: true,
+        weather: true,
+        image: true,
+        system_info: false,
+        screen_pos: false,
+        screen_nav: true,
+        gif: true,
+    },
+};
+
+/// Lazy handle to hidapi
+static API: LazyLock<RwLock<HidApi>> =
+    LazyLock::new(|| RwLock::new(HidApi::new().expect("failed to init hidapi")));
+
+/// High level abstraction for managing a Zoom75 Tiga keyboard
+pub struct Zoom75Tiga {
+    pub device: TigaDevice,
+}
+
+impl Zoom75Tiga {
+    /// Find and open the device for modifications.
+    pub fn open() -> Result<Self> {
+        API.write().unwrap().refresh_devices()?;
+        let api = API.read().unwrap();
+        let device = api
+            .device_list()
+            .find(|d| {
+                d.vendor_id() == consts::VENDOR_ID
+                    && d.product_id() == consts::PRODUCT_ID
+                    && d.usage_page() == consts::USAGE_PAGE
+                    && d.usage() == consts::USAGE
+            })
+            .ok_or(BoardError::DeviceNotFound)?
+            .open_device(&api)?;
+        Ok(Self {
+            device: TigaDevice::new(device)?,
+        })
+    }
+
+    /// Sync the current date and time to the keyboard display.
+    pub fn set_time<Tz: TimeZone>(&mut self, time: DateTime<Tz>) -> Result<()> {
+        let packet = protocol::datetime(
+            time.year() as u16,
+            time.month() as u8,
+            time.day() as u8,
+            time.hour() as u8,
+            time.minute() as u8,
+            time.second() as u8,
+            time.weekday().num_days_from_sunday() as u8,
+        );
+        self.device.execute(packet)
+    }
+
+    /// Update the weather display.
+    pub fn set_weather(
+        &mut self,
+        icon: WeatherIcon,
+        current: i16,
+        low: i16,
+        high: i16,
+    ) -> Result<()> {
+        let packet = protocol::weather(
+            icon,
+            encode_temperature(current),
+            encode_temperature(high),
+            encode_temperature(low),
+        );
+        self.device.execute(packet)
+    }
+
+    /// Set the screen theme colors.
+    pub fn set_theme(&mut self, bg_color: Rgb565, font_color: Rgb565, theme_id: u8) -> Result<()> {
+        let packet = protocol::theme(bg_color, font_color, theme_id);
+        self.device.execute(packet)
+    }
+
+    /// Send a screen navigation command.
+    pub fn screen_control(&mut self, mode: ScreenMode) -> Result<()> {
+        let packet = protocol::screen_control(mode);
+        self.device.execute(packet)
+    }
+
+    /// Navigate up in menu.
+    pub fn screen_up(&mut self) -> Result<()> {
+        self.screen_control(ScreenMode::Up)
+    }
+
+    /// Navigate down in menu.
+    pub fn screen_down(&mut self) -> Result<()> {
+        self.screen_control(ScreenMode::Down)
+    }
+
+    /// Enter/select menu item.
+    pub fn screen_enter(&mut self) -> Result<()> {
+        self.screen_control(ScreenMode::Enter)
+    }
+
+    /// Return/back from menu.
+    pub fn screen_return(&mut self) -> Result<()> {
+        self.screen_control(ScreenMode::Return)
+    }
+
+    /// Restart the screen module.
+    pub fn restart_screen(&mut self) -> Result<()> {
+        self.device.restart_screen()
+    }
+
+    /// Upload media to the keyboard screen.
+    ///
+    /// `frames` is one or more concatenated 320x172 frames of little-endian RGB565 pixels.
+    /// The callback receives the current page index.
+    pub fn upload_media(&mut self, frames: &[u8], cb: &mut dyn FnMut(usize)) -> Result<()> {
+        self.device.upload_media(frames, cb)
+    }
+}
+
+// === Trait Implementations ===
+
+impl Board for Zoom75Tiga {
+    fn info(&self) -> &'static BoardInfo {
+        &INFO
+    }
+
+    fn as_time(&mut self) -> Option<&mut dyn HasTime> {
+        Some(self)
+    }
+
+    fn as_weather(&mut self) -> Option<&mut dyn HasWeather> {
+        Some(self)
+    }
+
+    fn as_screen_size(&self) -> Option<(u32, u32)> {
+        Some((SCREEN_WIDTH, SCREEN_HEIGHT))
+    }
+
+    fn as_screen_nav(&mut self) -> Option<&mut dyn HasScreenNavigation> {
+        Some(self)
+    }
+
+    fn as_image(&mut self) -> Option<&mut dyn HasImage> {
+        Some(self)
+    }
+
+    fn as_gif(&mut self) -> Option<&mut dyn HasGif> {
+        Some(self)
+    }
+
+    fn as_theme(&mut self) -> Option<&mut dyn HasTheme> {
+        Some(self)
+    }
+}
+
+impl HasTime for Zoom75Tiga {
+    fn set_time(&mut self, time: DateTime<Local>, _use_12hr: bool) -> Result<()> {
+        // Note: The Zoom75 Tiga uses 24-hour format internally, so we ignore _use_12hr
+        Zoom75Tiga::set_time(self, time)
+    }
+}
+
+impl HasWeather for Zoom75Tiga {
+    fn set_weather(
+        &mut self,
+        wmo: u8,
+        is_day: bool,
+        current: i16,
+        low: i16,
+        high: i16,
+    ) -> Result<()> {
+        let icon = WeatherIcon::from_wmo(wmo, is_day);
+        Zoom75Tiga::set_weather(self, icon, current, low, high)
+    }
+}
+
+impl HasImage for Zoom75Tiga {
+    fn upload_image(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()> {
+        let frame = frame_from_rgb565a(data)
+            .ok_or(BoardError::InvalidMedia("image does not match screen size"))?;
+        self.upload_media(&frame, progress)
+    }
+
+    fn clear_image(&mut self) -> Result<()> {
+        Err(BoardError::CommandFailed(
+            "clearing media is not supported on this board",
+        ))
+    }
+}
+
+impl HasTheme for Zoom75Tiga {
+    fn set_theme(&mut self, bg_color: u16, font_color: u16, theme_id: u8) -> Result<()> {
+        Zoom75Tiga::set_theme(self, Rgb565(bg_color), Rgb565(font_color), theme_id)
+    }
+}
+
+impl HasGif for Zoom75Tiga {
+    fn upload_gif(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()> {
+        let encoded =
+            encode_gif(data).ok_or(BoardError::InvalidMedia("failed to encode gif to rgb565"))?;
+        self.upload_media(&encoded, progress)
+    }
+
+    fn clear_gif(&mut self) -> Result<()> {
+        Err(BoardError::CommandFailed(
+            "clearing media is not supported on this board",
+        ))
+    }
+}
+
+impl HasScreenNavigation for Zoom75Tiga {
+    fn screen_up(&mut self) -> Result<()> {
+        Zoom75Tiga::screen_up(self)
+    }
+
+    fn screen_down(&mut self) -> Result<()> {
+        Zoom75Tiga::screen_down(self)
+    }
+
+    fn screen_switch(&mut self) -> Result<()> {
+        Zoom75Tiga::screen_enter(self)
+    }
+
+    fn screen_reset(&mut self) -> Result<()> {
+        Zoom75Tiga::screen_return(self)
+    }
+}

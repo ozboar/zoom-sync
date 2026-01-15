@@ -6,20 +6,18 @@
 //!
 //! Screen size: 320x172 pixels, RGB565 format.
 
-use std::io::Cursor;
 use std::sync::{LazyLock, RwLock};
-use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Datelike, Local, TimeZone, Timelike};
-use hidapi::{HidApi, HidDevice};
-use image::codecs::gif::GifDecoder;
-use image::{imageops, AnimationDecoder};
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use hidapi::HidApi;
 use zoom_sync_core::{
     Board, BoardError, BoardInfo, Capabilities, HasGif, HasImage, HasScreenNavigation,
     HasSystemInfo, HasTheme, HasTime, HasWeather, Result,
 };
-use zoom_tiga_protocol::{encode_temperature, Rgb565, ScreenMode, WeatherIcon};
+use zoom_tiga_protocol::{
+    encode_gif, encode_temperature, frame_from_rgb565a, Rgb565, ScreenMode, TigaDevice,
+    WeatherIcon,
+};
 
 pub use zoom_tiga_protocol::{self as protocol, SCREEN_HEIGHT, SCREEN_WIDTH};
 
@@ -54,76 +52,13 @@ pub static INFO: BoardInfo = BoardInfo {
     },
 };
 
-
-/// Size of the header prepended to uploaded media
-const MEDIA_HEADER_LEN: usize = 452;
-/// Bytes of media data carried by each upload page
-const PAGE_SIZE: usize = 16;
-/// How long to wait for a reply to regular commands
-const COMMAND_TIMEOUT: Duration = Duration::from_millis(100);
-/// How long to wait for an upload page to be acknowledged before resending
-const UPLOAD_TIMEOUT: Duration = Duration::from_secs(1);
-/// Number of times an upload page is sent before giving up
-const UPLOAD_ATTEMPTS: usize = 3;
-
-/// Media upload header. Contents are static regardless of frame count.
-fn media_header() -> [u8; MEDIA_HEADER_LEN] {
-    let mut header = [0u8; MEDIA_HEADER_LEN];
-    header[360..364].copy_from_slice(&(MEDIA_HEADER_LEN as u32).to_le_bytes());
-    header[400] = 1;
-    header[403] = 1;
-    header
-}
-
-/// Convert a screen sized RGBA frame into little-endian RGB565, ignoring alpha.
-fn encode_frame(frame: &image::RgbaImage) -> Vec<u8> {
-    frame
-        .pixels()
-        .flat_map(|p| {
-            let [r, g, b, _] = p.0;
-            Rgb565::from_rgb(r, g, b).to_le_bytes()
-        })
-        .collect()
-}
-
-/// Re-encode a GIF as concatenated screen sized RGB565 little-endian frames.
-///
-/// Frames larger than the screen are cropped from the top left corner, smaller frames are
-/// resized to fit. Frame delays are not supported by the device.
-pub fn encode_gif(gif_data: &[u8]) -> Option<Vec<u8>> {
-    let frames = GifDecoder::new(Cursor::new(gif_data))
-        .ok()?
-        .into_frames()
-        .collect_frames()
-        .ok()?;
-    let encoded: Vec<Vec<u8>> = frames
-        .par_iter()
-        .map(|frame| {
-            let buf = frame.buffer();
-            let frame = if buf.width() >= SCREEN_WIDTH && buf.height() >= SCREEN_HEIGHT {
-                imageops::crop_imm(buf, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT).to_image()
-            } else {
-                imageops::resize(
-                    buf,
-                    SCREEN_WIDTH,
-                    SCREEN_HEIGHT,
-                    imageops::FilterType::Gaussian,
-                )
-            };
-            encode_frame(&frame)
-        })
-        .collect();
-    Some(encoded.concat())
-}
-
 /// Lazy handle to hidapi
 static API: LazyLock<RwLock<HidApi>> =
     LazyLock::new(|| RwLock::new(HidApi::new().expect("failed to init hidapi")));
 
 /// High level abstraction for managing a Zoom TKL Dyna keyboard
 pub struct ZoomTklDyna {
-    pub device: HidDevice,
-    buf: [u8; 64],
+    pub device: TigaDevice,
 }
 
 impl ZoomTklDyna {
@@ -131,71 +66,19 @@ impl ZoomTklDyna {
     pub fn open() -> Result<Self> {
         API.write().unwrap().refresh_devices()?;
         let api = API.read().unwrap();
-        let mut this = Self {
-            device: api
-                .device_list()
-                .find(|d| {
-                    d.vendor_id() == consts::VENDOR_ID
-                        && d.product_id() == consts::PRODUCT_ID
-                        && d.usage_page() == consts::USAGE_PAGE
-                        && d.usage() == consts::USAGE
-                })
-                .ok_or(BoardError::DeviceNotFound)?
-                .open_device(&api)?,
-            buf: [0u8; 64],
-        };
-
-        // Same info query the web driver sends on connect
-        this.execute(protocol::info())?;
-
-        Ok(this)
-    }
-
-    /// Wait for a reply to `command`, discarding unrelated input reports.
-    /// Returns false if the timeout elapsed without a reply.
-    fn wait_for(&mut self, command: u8, timeout: Duration) -> Result<bool> {
-        let deadline = Instant::now() + timeout;
-        loop {
-            let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                return Ok(false);
-            }
-            let len = self
-                .device
-                .read_timeout(&mut self.buf, remaining.as_millis().max(1) as i32)?;
-            if len == 0 {
-                return Ok(false);
-            }
-            if len > 9 && self.buf[0] == 0x1C && self.buf[9] == command {
-                return Ok(true);
-            }
-        }
-    }
-
-    /// Discard any pending input reports.
-    fn drain(&mut self) -> Result<()> {
-        while self.device.read_timeout(&mut self.buf, 0)? > 0 {}
-        Ok(())
-    }
-
-    /// Internal method to send a packet and consume its reply, if any
-    fn execute(&mut self, packet: [u8; 33]) -> Result<()> {
-        self.device.write(&packet)?;
-        self.wait_for(packet[10], COMMAND_TIMEOUT)?;
-        Ok(())
-    }
-
-    /// Send an upload packet, resending until the device acknowledges it
-    fn execute_upload(&mut self, packet: [u8; 33]) -> Result<()> {
-        for _ in 0..UPLOAD_ATTEMPTS {
-            self.device.write(&packet)?;
-            if self.wait_for(protocol::cmd::IMAGE, UPLOAD_TIMEOUT)? {
-                return Ok(());
-            }
-        }
-        Err(BoardError::CommandFailed(
-            "device did not acknowledge upload",
-        ))
+        let device = api
+            .device_list()
+            .find(|d| {
+                d.vendor_id() == consts::VENDOR_ID
+                    && d.product_id() == consts::PRODUCT_ID
+                    && d.usage_page() == consts::USAGE_PAGE
+                    && d.usage() == consts::USAGE
+            })
+            .ok_or(BoardError::DeviceNotFound)?
+            .open_device(&api)?;
+        Ok(Self {
+            device: TigaDevice::new(device)?,
+        })
     }
 
     /// Sync the current date and time to the keyboard display.
@@ -209,7 +92,7 @@ impl ZoomTklDyna {
             time.second() as u8,
             time.weekday().num_days_from_sunday() as u8,
         );
-        self.execute(packet)
+        self.device.execute(packet)
     }
 
     /// Update the weather display.
@@ -226,7 +109,7 @@ impl ZoomTklDyna {
             encode_temperature(high),
             encode_temperature(low),
         );
-        self.execute(packet)
+        self.device.execute(packet)
     }
 
     /// Update the system info display
@@ -245,20 +128,20 @@ impl ZoomTklDyna {
 
         let packet =
             protocol::set_system_info(cpu_temp, gpu_temp, download_rate, gpu_fan_speed_adjusted);
-        self.execute(packet)
+        self.device.execute(packet)
     }
 
     /// Set the screen theme colors.
     /// For TKL Dyna, this sets the reactive typing color themeing built into the screen.
     pub fn set_theme(&mut self, bg_color: Rgb565, font_color: Rgb565, theme_id: u8) -> Result<()> {
         let packet = protocol::theme(bg_color, font_color, theme_id);
-        self.execute(packet)
+        self.device.execute(packet)
     }
 
     /// Send a screen navigation command.
     pub fn screen_control(&mut self, mode: ScreenMode) -> Result<()> {
         let packet = protocol::screen_control(mode);
-        self.execute(packet)
+        self.device.execute(packet)
     }
 
     /// Navigate up in menu.
@@ -283,9 +166,7 @@ impl ZoomTklDyna {
 
     /// Restart the screen module.
     pub fn restart_screen(&mut self) -> Result<()> {
-        self.execute(protocol::restart())?;
-        std::thread::sleep(Duration::from_millis(100));
-        self.execute(protocol::info())
+        self.device.restart_screen()
     }
 
     /// Upload media to the keyboard screen.
@@ -293,28 +174,7 @@ impl ZoomTklDyna {
     /// `frames` is one or more concatenated 320x172 frames of little-endian RGB565 pixels.
     /// The callback receives the current page index.
     pub fn upload_media(&mut self, frames: &[u8], cb: &mut dyn FnMut(usize)) -> Result<()> {
-        let frame_len = (SCREEN_WIDTH * SCREEN_HEIGHT * 2) as usize;
-        if frames.is_empty() || !frames.len().is_multiple_of(frame_len) {
-            return Err(BoardError::InvalidMedia(
-                "data is not a whole number of frames",
-            ));
-        }
-
-        let mut data = Vec::with_capacity(MEDIA_HEADER_LEN + frames.len());
-        data.extend_from_slice(&media_header());
-        data.extend_from_slice(frames);
-
-        self.drain()?;
-        let page_count = data.len().div_ceil(PAGE_SIZE);
-        for (page_index, chunk) in data.chunks(PAGE_SIZE).enumerate() {
-            cb(page_index);
-            // The page index wraps past u16::MAX, matching the web driver
-            self.execute_upload(protocol::image_chunk(page_index as u16, chunk))?;
-        }
-        self.execute_upload(protocol::image_end())?;
-
-        cb(page_count);
-        Ok(())
+        self.device.upload_media(frames, cb)
     }
 }
 
@@ -381,11 +241,8 @@ impl HasScreenNavigation for ZoomTklDyna {
 
 impl HasImage for ZoomTklDyna {
     fn upload_image(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()> {
-        // Input is big-endian RGB565 with a trailing alpha byte per pixel
-        if data.len() != (SCREEN_WIDTH * SCREEN_HEIGHT * 3) as usize {
-            return Err(BoardError::InvalidMedia("image does not match screen size"));
-        }
-        let frame: Vec<u8> = data.chunks_exact(3).flat_map(|p| [p[1], p[0]]).collect();
+        let frame = frame_from_rgb565a(data)
+            .ok_or(BoardError::InvalidMedia("image does not match screen size"))?;
         self.upload_media(&frame, progress)
     }
 
@@ -440,25 +297,5 @@ impl HasSystemInfo for ZoomTklDyna {
             download,
             fan_rpm.try_into().unwrap_or(u16::MAX),
         )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn media_header_matches_reference() {
-        let header = media_header();
-        assert_eq!(&header[360..364], &[196, 1, 0, 0]);
-        assert_eq!(header[400], 1);
-        assert_eq!(header[403], 1);
-        assert_eq!(header.iter().filter(|&&b| b != 0).count(), 4);
-    }
-
-    #[test]
-    fn frame_is_little_endian() {
-        let frame = image::RgbaImage::from_pixel(1, 1, [255, 0, 0, 255].into());
-        assert_eq!(encode_frame(&frame), vec![0x00, 0xF8]);
     }
 }

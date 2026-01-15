@@ -12,11 +12,15 @@
 
 pub mod abi;
 pub mod crc;
+pub mod device;
 pub mod types;
+pub mod utils;
 
 pub use abi::*;
 pub use crc::*;
+pub use device::*;
 pub use types::*;
+pub use utils::*;
 
 /// Screen width in pixels
 pub const SCREEN_WIDTH: u32 = 320;

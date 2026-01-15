@@ -12,5 +12,3 @@ zoom-sync-core = { path = "../core", version = "0.1" }
 zoom-tiga-protocol = { path = "../tiga-protocol", version = "0.1" }
 hidapi = { workspace = true }
 chrono = { workspace = true }
-image = "0.25.5"
-rayon = "1.10.0"
