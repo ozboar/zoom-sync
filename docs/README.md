@@ -10,6 +10,7 @@
   * [`zoom-sync set weather`↴](#zoom-sync-set-weather)
   * [`zoom-sync set system`↴](#zoom-sync-set-system)
   * [`zoom-sync set screen`↴](#zoom-sync-set-screen)
+  * [`zoom-sync set theme`↴](#zoom-sync-set-theme)
   * [`zoom-sync set image`↴](#zoom-sync-set-image)
   * [`zoom-sync set image clear`↴](#zoom-sync-set-image-clear)
   * [`zoom-sync set gif`↴](#zoom-sync-set-gif)
@@ -26,7 +27,7 @@ Cross-platform utility for syncing zoom65v3 screen modules
 
 **Available options:**
 - **`-b`**, **`--board`**=_`BOARD`_ &mdash; 
-  Board to use (auto, zoom65v3). Defaults to auto-detection.
+  Board to use (auto, zoom65v3, zoom-tkl-dyna). Defaults to auto-detection.
 - **`-h`**, **`--help`** &mdash; 
   Prints help information
 - **`-V`**, **`--version`** &mdash; 
@@ -73,6 +74,8 @@ Set specific options on the keyboard
   Set system info
 - **`screen`** &mdash; 
   Change current screen
+- **`theme`** &mdash; 
+  Set screen theme colors (zoom-tkl-dyna only)
 - **`image`** &mdash; 
   Upload static image
 - **`gif`** &mdash; 
@@ -179,6 +182,27 @@ Change current screen
 
 
 **Available options:**
+- **`-h`**, **`--help`** &mdash; 
+  Prints help information
+
+
+## zoom-sync set theme
+
+Set screen theme colors (zoom-tkl-dyna only)
+
+**Usage**: **`zoom-sync`** **`set`** **`theme`** \[**`-b`**=_`ARG`_\] \[**`-c`**=_`ARG`_\] \[**`-i`**=_`ARG`_\]
+
+**Available options:**
+- **`-b`**, **`--bg`**=_`ARG`_ &mdash; 
+  Background color (hex: #RRGGBB or #RGB)
+   
+  [default: #000000]
+- **`-c`**, **`--color`**=_`ARG`_ &mdash; 
+  Font/foreground color (hex: #RRGGBB or #RGB)
+   
+  [default: #ffffff]
+- **`-i`**, **`--id`**=_`ARG`_ &mdash; 
+  Theme preset ID
 - **`-h`**, **`--help`** &mdash; 
   Prints help information
 

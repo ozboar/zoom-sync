@@ -66,6 +66,19 @@ enum SetCommand {
     /// Change current screen
     #[bpaf(command, fallback_to_usage)]
     Screen(#[bpaf(external(screen_args))] ScreenArgs),
+    /// Set screen theme colors (zoom-tkl-dyna only)
+    #[bpaf(command)]
+    Theme {
+        /// Background color (hex: #RRGGBB or #RGB)
+        #[bpaf(short, long, fallback(Color([0; 3])), display_fallback)]
+        bg: Color,
+        /// Font/foreground color (hex: #RRGGBB or #RGB)
+        #[bpaf(short('c'), long("color"), fallback(Color([255; 3])), display_fallback)]
+        font: Color,
+        /// Theme preset ID
+        #[bpaf(short, long, fallback(0u8))]
+        id: u8,
+    },
     /// Upload static image
     #[bpaf(command, fallback_to_usage)]
     Image(#[bpaf(external(set_media_args))] SetMediaArgs),
@@ -168,6 +181,14 @@ fn command() -> impl Parser<Command> {
     bpaf::construct!([tray, set]).fallback(Command::Tray)
 }
 
+/// Convert RGB888 to RGB565
+fn rgb_to_rgb565(rgb: [u8; 3]) -> u16 {
+    let r5 = ((rgb[0] >> 3) & 0x1F) as u16;
+    let g6 = ((rgb[1] >> 2) & 0x3F) as u16;
+    let b5 = ((rgb[2] >> 3) & 0x1F) as u16;
+    (r5 << 11) | (g6 << 5) | b5
+}
+
 pub fn apply_time(board: &mut dyn Board, _12hr: bool) -> Result<(), Box<dyn Error>> {
     let time = chrono::Local::now();
     board
@@ -208,6 +229,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                         download,
                     ),
                     SetCommand::Screen(args) => apply_screen(&args, board.as_mut()),
+                    SetCommand::Theme { bg, font, id } => {
+                        // Convert RGB to RGB565
+                        let bg_565 = rgb_to_rgb565(bg.0);
+                        let font_565 = rgb_to_rgb565(font.0);
+                        board
+                            .as_theme()
+                            .ok_or("board does not support theme customization")?
+                            .set_theme(bg_565, font_565, id)?;
+                        println!("set theme: bg={bg}, font={font}, id={id}");
+                        Ok(())
+                    },
                     SetCommand::Image(args) => match args {
                         SetMediaArgs::Set { nearest, path, bg } => {
                             let (width, height) = board
