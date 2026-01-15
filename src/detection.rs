@@ -35,14 +35,15 @@ impl std::fmt::Display for BoardKind {
         match self {
             Self::Auto => write!(f, "auto"),
             Self::Zoom65v3 => write!(f, "zoom65v3"),
+            Self::ZoomTklDyna => write!(f, "zoom-tkl-dyna"),
         }
     }
 }
 
 /// Check if a HID device matches the board info
 fn matches(device: &hidapi::DeviceInfo, info: &BoardInfo) -> bool {
-    device.vendor_id() == info.vendor_id
-        && device.product_id() == info.product_id
+    info.vendor_id.is_none_or(|vid| device.vendor_id() == vid)
+        && info.product_id.is_none_or(|pid| device.product_id() == pid)
         && info.usage_page.is_none_or(|up| device.usage_page() == up)
         && info.usage.is_none_or(|u| device.usage() == u)
 }
