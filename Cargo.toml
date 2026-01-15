@@ -44,8 +44,8 @@ nvml-wrapper = "0.10.0" # nvidia gpu temp
 sysinfo = "0.33.1" # cpu temp
 
 # system tray
-tray-icon = "0.17"
-muda = "0.14"
+tray-icon = { version = "0.17", default-features = false }
+muda = { version = "0.14", default-features = false }
 rfd = { version = "0.14", default-features = false, features = ["gtk3"] }
 crossbeam-channel = "0.5"
 
