@@ -13,7 +13,7 @@ use zoom_sync_core::Board;
 pub enum CpuMode {
     Label(
         /// Sensor label to search for
-        #[bpaf(long("cpu"), argument("LABEL"), fallback("coretemp Package".into()), display_fallback)]
+        #[bpaf(long("cpu"), argument("LABEL"), fallback("Package".into()), display_fallback)]
         String,
     ),
     Manual(
@@ -61,12 +61,12 @@ pub struct GpuTemp {
 }
 
 impl GpuTemp {
-    /// Construct a new gpu tempurature monitor, optionally selecting by device index
+    /// Construct a new gpu temperature monitor, optionally selecting by device index
     pub fn new(index: u32) -> Self {
         static NVML: LazyLock<Option<Nvml>> = LazyLock::new(|| {
             let nvml = Nvml::init().ok();
             if nvml.is_none() {
-                eprintln!("warning: nvml not found");
+                eprintln!("warning: nvml not found (nvidia gpu temp unavailable)");
             }
             nvml
         });
@@ -74,7 +74,7 @@ impl GpuTemp {
         let maybe_device = NVML.as_ref().and_then(|nvml| {
             let device = nvml.device_by_index(index).ok();
             if device.is_none() {
-                eprintln!("warning: device not found")
+                eprintln!("warning: gpu device {index} not found")
             }
             device
         });
@@ -105,9 +105,47 @@ impl CpuTemp {
     // Create a new cpu temp monitor, optionally selecting the component by a label search string
     pub fn new(search_label: &str) -> Self {
         let comps: Vec<_> = Components::new_with_refreshed_list().into();
-        let maybe_cpu = comps.into_iter().find(|v| v.label().contains(search_label));
+
+        // Try to find the specified sensor, or fall back to common alternatives
+        let fallbacks = ["Tctl", "Package", "CPU"];
+        let mut matched_fallback = None;
+
+        let maybe_cpu = comps
+            .into_iter()
+            .find(|v| {
+                if v.label().contains(search_label) {
+                    return true;
+                }
+                // Check fallbacks while iterating
+                if matched_fallback.is_none() {
+                    for (i, fb) in fallbacks.iter().enumerate() {
+                        if v.label().contains(fb) {
+                            matched_fallback = Some(i);
+                            break;
+                        }
+                    }
+                }
+                false
+            })
+            .or_else(|| {
+                // Didn't find exact match, try fallbacks
+                if let Some(fb_idx) = matched_fallback {
+                    let comps: Vec<_> = Components::new_with_refreshed_list().into();
+                    let fb = fallbacks[fb_idx];
+                    return comps.into_iter().find(|v| v.label().contains(fb));
+                }
+                None
+            });
+
         if maybe_cpu.is_none() {
-            eprintln!("warning: could not find coretemp package")
+            let comps: Vec<_> = Components::new_with_refreshed_list().into();
+            eprintln!("warning: no cpu temp sensor found");
+            if !comps.is_empty() {
+                eprintln!("  available sensors:");
+                for c in &comps {
+                    eprintln!("    - {}", c.label());
+                }
+            }
         }
         Self { maybe_cpu }
     }

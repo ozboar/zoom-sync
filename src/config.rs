@@ -164,7 +164,7 @@ impl Default for SystemInfoConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            cpu_source: "coretemp Package".into(),
+            cpu_source: "Package".into(),
             gpu_device: 0,
         }
     }

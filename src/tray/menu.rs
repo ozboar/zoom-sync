@@ -76,7 +76,6 @@ pub struct MenuItems {
     // Track which feature menus are currently shown
     screen_menus_visible: std::cell::Cell<bool>,
     media_menu_visible: std::cell::Cell<bool>,
-    default_screen_visible: std::cell::Cell<bool>,
     // Screen position items
     pub screen_cpu: CheckMenuItem,
     pub screen_gpu: CheckMenuItem,
@@ -136,6 +135,7 @@ impl MenuItems {
 
         // Add/remove media menu based on feature
         let media_visible = self.media_menu_visible.get();
+        // Position after: status, separator, [screen, nav]
         let media_position = if self.screen_menus_visible.get() { 4 } else { 2 };
         if has_media && !media_visible {
             self.menu.insert(&self.media_submenu, media_position).unwrap();
@@ -166,15 +166,8 @@ impl MenuItems {
             item.set_checked(current == id);
         }
 
-        // Add/remove default screen submenu based on screen feature
-        let default_visible = self.default_screen_visible.get();
-        if has_screen && !default_visible {
-            self.default_screen_submenu.set_enabled(true);
-            self.default_screen_visible.set(true);
-        } else if !has_screen && default_visible {
-            self.default_screen_submenu.set_enabled(false);
-            self.default_screen_visible.set(false);
-        }
+        // Enable/disable default screen submenu based on screen feature
+        self.default_screen_submenu.set_enabled(has_screen);
 
         // Update default screen radio buttons
         let default_items = [
@@ -346,49 +339,6 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
 
     // Don't append nav_submenu yet - added dynamically when connected
 
-    // Settings submenu
-    let settings_submenu = Submenu::new("Settings", true);
-
-    let toggle_weather = CheckMenuItem::with_id(
-        ids::TOGGLE_WEATHER,
-        "Enable Weather",
-        true,
-        state.config.weather.enabled,
-        None::<Accelerator>,
-    );
-    let toggle_system = CheckMenuItem::with_id(
-        ids::TOGGLE_SYSTEM,
-        "Enable System Info",
-        true,
-        state.config.system_info.enabled,
-        None::<Accelerator>,
-    );
-    settings_submenu.append(&toggle_weather).unwrap();
-    settings_submenu.append(&toggle_system).unwrap();
-    settings_submenu
-        .append(&PredefinedMenuItem::separator())
-        .unwrap();
-
-    let toggle_12hr = CheckMenuItem::with_id(
-        ids::TOGGLE_12HR,
-        "12-Hour Time",
-        true,
-        state.config.general.use_12hr_time,
-        None::<Accelerator>,
-    );
-    let toggle_fahrenheit = CheckMenuItem::with_id(
-        ids::TOGGLE_FAHRENHEIT,
-        "Fahrenheit",
-        true,
-        state.config.general.fahrenheit,
-        None::<Accelerator>,
-    );
-    settings_submenu.append(&toggle_12hr).unwrap();
-    settings_submenu.append(&toggle_fahrenheit).unwrap();
-    settings_submenu
-        .append(&PredefinedMenuItem::separator())
-        .unwrap();
-
     // Default screen submenu (disabled until board connects with screen feature)
     let default_screen_submenu = Submenu::new("Default Screen", false);
     let initial = &state.config.general.initial_screen;
@@ -486,25 +436,7 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
     );
     default_screen_submenu.append(&default_battery).unwrap();
 
-    settings_submenu.append(&default_screen_submenu).unwrap();
-
-    #[cfg(target_os = "linux")]
-    let toggle_reactive = {
-        settings_submenu
-            .append(&PredefinedMenuItem::separator())
-            .unwrap();
-        let toggle = CheckMenuItem::with_id(
-            ids::TOGGLE_REACTIVE,
-            "Reactive Mode",
-            true,
-            state.config.general.reactive_mode,
-            None::<Accelerator>,
-        );
-        settings_submenu.append(&toggle).unwrap();
-        toggle
-    };
-
-    menu.append(&settings_submenu).unwrap();
+    // Don't append default_screen_submenu yet - added dynamically when connected
 
     // Media submenu
     let media_submenu = Submenu::new("Media", true);
@@ -556,6 +488,57 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
 
     menu.append(&PredefinedMenuItem::separator()).unwrap();
 
+    // Settings toggles (inlined)
+    let toggle_weather = CheckMenuItem::with_id(
+        ids::TOGGLE_WEATHER,
+        "Weather Updates",
+        true,
+        state.config.weather.enabled,
+        None::<Accelerator>,
+    );
+    let toggle_system = CheckMenuItem::with_id(
+        ids::TOGGLE_SYSTEM,
+        "System Info Updates",
+        true,
+        state.config.system_info.enabled,
+        None::<Accelerator>,
+    );
+    let toggle_12hr = CheckMenuItem::with_id(
+        ids::TOGGLE_12HR,
+        "12-Hour Time",
+        true,
+        state.config.general.use_12hr_time,
+        None::<Accelerator>,
+    );
+    let toggle_fahrenheit = CheckMenuItem::with_id(
+        ids::TOGGLE_FAHRENHEIT,
+        "Fahrenheit",
+        true,
+        state.config.general.fahrenheit,
+        None::<Accelerator>,
+    );
+    menu.append(&toggle_weather).unwrap();
+    menu.append(&toggle_system).unwrap();
+    menu.append(&toggle_12hr).unwrap();
+    menu.append(&toggle_fahrenheit).unwrap();
+    // Default screen starts disabled until board connects with screen feature
+    menu.append(&default_screen_submenu).unwrap();
+
+    #[cfg(target_os = "linux")]
+    let toggle_reactive = {
+        let toggle = CheckMenuItem::with_id(
+            ids::TOGGLE_REACTIVE,
+            "Reactive Mode",
+            true,
+            state.config.general.reactive_mode,
+            None::<Accelerator>,
+        );
+        menu.append(&toggle).unwrap();
+        toggle
+    };
+
+    menu.append(&PredefinedMenuItem::separator()).unwrap();
+
     // Config options
     menu.append(&MenuItem::with_id(
         ids::OPEN_CONFIG,
@@ -603,7 +586,6 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
         default_screen_submenu,
         screen_menus_visible: std::cell::Cell::new(false),
         media_menu_visible: std::cell::Cell::new(false),
-        default_screen_visible: std::cell::Cell::new(false),
         screen_cpu,
         screen_gpu,
         screen_download,
