@@ -1,9 +1,5 @@
 //! Menu construction and event handling
 
-use std::path::PathBuf;
-
-use tokio::sync::mpsc::UnboundedSender;
-
 use muda::{
     accelerator::Accelerator, AboutMetadata, CheckMenuItem, Menu, MenuEvent, MenuItem,
     PredefinedMenuItem, Submenu,
@@ -373,80 +369,66 @@ pub fn build_menu(state: &TrayState) -> (Menu, MenuItems) {
     (menu, items)
 }
 
-/// Handle a menu event and send appropriate command
-pub fn handle_menu_event(event: MenuEvent, cmd_tx: &UnboundedSender<TrayCommand>) -> bool {
+/// Menu event that may require async handling
+pub enum MenuAction {
+    /// Immediate command
+    Command(TrayCommand),
+    /// Need to pick an image file (async)
+    PickImage,
+    /// Need to pick a gif file (async)
+    PickGif,
+    /// No action needed
+    None,
+}
+
+/// Handle a menu event and return the appropriate action
+pub fn handle_menu_event(event: MenuEvent) -> MenuAction {
     let id = event.id().0.as_str();
-    let cmd = match id {
+    match id {
         // Screen positions
-        ids::SCREEN_CPU => Some(TrayCommand::SetScreen("cpu")),
-        ids::SCREEN_GPU => Some(TrayCommand::SetScreen("gpu")),
-        ids::SCREEN_DOWNLOAD => Some(TrayCommand::SetScreen("download")),
-        ids::SCREEN_TIME => Some(TrayCommand::SetScreen("time")),
-        ids::SCREEN_WEATHER => Some(TrayCommand::SetScreen("weather")),
-        ids::SCREEN_MELETRIX => Some(TrayCommand::SetScreen("meletrix")),
-        ids::SCREEN_ZOOM65 => Some(TrayCommand::SetScreen("zoom65")),
-        ids::SCREEN_IMAGE => Some(TrayCommand::SetScreen("image")),
-        ids::SCREEN_GIF => Some(TrayCommand::SetScreen("gif")),
-        ids::SCREEN_BATTERY => Some(TrayCommand::SetScreen("battery")),
+        ids::SCREEN_CPU => MenuAction::Command(TrayCommand::SetScreen("cpu")),
+        ids::SCREEN_GPU => MenuAction::Command(TrayCommand::SetScreen("gpu")),
+        ids::SCREEN_DOWNLOAD => MenuAction::Command(TrayCommand::SetScreen("download")),
+        ids::SCREEN_TIME => MenuAction::Command(TrayCommand::SetScreen("time")),
+        ids::SCREEN_WEATHER => MenuAction::Command(TrayCommand::SetScreen("weather")),
+        ids::SCREEN_MELETRIX => MenuAction::Command(TrayCommand::SetScreen("meletrix")),
+        ids::SCREEN_ZOOM65 => MenuAction::Command(TrayCommand::SetScreen("zoom65")),
+        ids::SCREEN_IMAGE => MenuAction::Command(TrayCommand::SetScreen("image")),
+        ids::SCREEN_GIF => MenuAction::Command(TrayCommand::SetScreen("gif")),
+        ids::SCREEN_BATTERY => MenuAction::Command(TrayCommand::SetScreen("battery")),
 
         // Navigation
-        ids::NAV_UP => Some(TrayCommand::ScreenUp),
-        ids::NAV_DOWN => Some(TrayCommand::ScreenDown),
-        ids::NAV_SWITCH => Some(TrayCommand::ScreenSwitch),
+        ids::NAV_UP => MenuAction::Command(TrayCommand::ScreenUp),
+        ids::NAV_DOWN => MenuAction::Command(TrayCommand::ScreenDown),
+        ids::NAV_SWITCH => MenuAction::Command(TrayCommand::ScreenSwitch),
 
-        // Toggles - the daemon handles reading current state and flipping it
-        ids::TOGGLE_WEATHER => Some(TrayCommand::ToggleWeather),
-        ids::TOGGLE_SYSTEM => Some(TrayCommand::ToggleSystemInfo),
-        ids::TOGGLE_12HR => Some(TrayCommand::Toggle12HrTime),
-        ids::TOGGLE_FAHRENHEIT => Some(TrayCommand::ToggleFahrenheit),
+        // Toggles
+        ids::TOGGLE_WEATHER => MenuAction::Command(TrayCommand::ToggleWeather),
+        ids::TOGGLE_SYSTEM => MenuAction::Command(TrayCommand::ToggleSystemInfo),
+        ids::TOGGLE_12HR => MenuAction::Command(TrayCommand::Toggle12HrTime),
+        ids::TOGGLE_FAHRENHEIT => MenuAction::Command(TrayCommand::ToggleFahrenheit),
         #[cfg(target_os = "linux")]
-        ids::TOGGLE_REACTIVE => Some(TrayCommand::ToggleReactiveMode),
+        ids::TOGGLE_REACTIVE => MenuAction::Command(TrayCommand::ToggleReactiveMode),
 
-        // Media - file dialogs handled separately
-        ids::UPLOAD_IMAGE => {
-            pick_image_file().map(TrayCommand::UploadImage)
-        }
-        ids::UPLOAD_GIF => {
-            pick_gif_file().map(TrayCommand::UploadGif)
-        }
-        ids::CLEAR_IMAGE => Some(TrayCommand::ClearImage),
-        ids::CLEAR_GIF => Some(TrayCommand::ClearGif),
-        ids::CLEAR_ALL => Some(TrayCommand::ClearAllMedia),
+        // Media - file dialogs need async handling
+        ids::UPLOAD_IMAGE => MenuAction::PickImage,
+        ids::UPLOAD_GIF => MenuAction::PickGif,
+        ids::CLEAR_IMAGE => MenuAction::Command(TrayCommand::ClearImage),
+        ids::CLEAR_GIF => MenuAction::Command(TrayCommand::ClearGif),
+        ids::CLEAR_ALL => MenuAction::Command(TrayCommand::ClearAllMedia),
 
         // Config
         ids::OPEN_CONFIG => {
             open_config_file();
-            None
+            MenuAction::None
         }
-        ids::RELOAD_CONFIG => Some(TrayCommand::ReloadConfig),
+        ids::RELOAD_CONFIG => MenuAction::Command(TrayCommand::ReloadConfig),
 
         // Quit
-        ids::QUIT => Some(TrayCommand::Quit),
+        ids::QUIT => MenuAction::Command(TrayCommand::Quit),
 
-        _ => None,
-    };
-
-    if let Some(cmd) = cmd {
-        let is_quit = matches!(cmd, TrayCommand::Quit);
-        let _ = cmd_tx.send(cmd);
-        return is_quit;
+        _ => MenuAction::None,
     }
-
-    false
-}
-
-fn pick_image_file() -> Option<PathBuf> {
-    rfd::FileDialog::new()
-        .add_filter("Images", &["png", "jpg", "jpeg", "bmp", "webp"])
-        .set_title("Select Image")
-        .pick_file()
-}
-
-fn pick_gif_file() -> Option<PathBuf> {
-    rfd::FileDialog::new()
-        .add_filter("Animations", &["gif", "webp", "png", "apng"])
-        .set_title("Select Animation")
-        .pick_file()
 }
 
 fn open_config_file() {

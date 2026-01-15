@@ -46,8 +46,7 @@ sysinfo = "0.33.1" # cpu temp
 # system tray
 tray-icon = { version = "0.17", default-features = false }
 muda = { version = "0.14", default-features = false }
-rfd = { version = "0.14", default-features = false, features = ["gtk3"] }
-crossbeam-channel = "0.5"
+rfd = "0.17"
 
 # config persistence
 serde = { version = "1.0", features = ["derive"] }
