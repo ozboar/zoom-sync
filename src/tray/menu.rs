@@ -37,18 +37,6 @@ pub mod ids {
     #[cfg(target_os = "linux")]
     pub const TOGGLE_REACTIVE: &str = "toggle_reactive";
 
-    // Default screen options
-    pub const DEFAULT_SCREEN_CPU: &str = "default_screen_cpu";
-    pub const DEFAULT_SCREEN_GPU: &str = "default_screen_gpu";
-    pub const DEFAULT_SCREEN_DOWNLOAD: &str = "default_screen_download";
-    pub const DEFAULT_SCREEN_TIME: &str = "default_screen_time";
-    pub const DEFAULT_SCREEN_WEATHER: &str = "default_screen_weather";
-    pub const DEFAULT_SCREEN_MELETRIX: &str = "default_screen_meletrix";
-    pub const DEFAULT_SCREEN_ZOOM65: &str = "default_screen_zoom65";
-    pub const DEFAULT_SCREEN_IMAGE: &str = "default_screen_image";
-    pub const DEFAULT_SCREEN_GIF: &str = "default_screen_gif";
-    pub const DEFAULT_SCREEN_BATTERY: &str = "default_screen_battery";
-
     // Media
     pub const UPLOAD_IMAGE: &str = "upload_image";
     pub const UPLOAD_GIF: &str = "upload_gif";
@@ -72,7 +60,6 @@ pub struct MenuItems {
     pub screen_submenu: Submenu,
     pub nav_submenu: Submenu,
     pub media_submenu: Submenu,
-    pub default_screen_submenu: Submenu,
     // Track which feature menus are currently shown
     screen_menus_visible: std::cell::Cell<bool>,
     media_menu_visible: std::cell::Cell<bool>,
@@ -87,17 +74,6 @@ pub struct MenuItems {
     pub screen_image: CheckMenuItem,
     pub screen_gif: CheckMenuItem,
     pub screen_battery: CheckMenuItem,
-    // Default screen items
-    pub default_cpu: CheckMenuItem,
-    pub default_gpu: CheckMenuItem,
-    pub default_download: CheckMenuItem,
-    pub default_time: CheckMenuItem,
-    pub default_weather: CheckMenuItem,
-    pub default_meletrix: CheckMenuItem,
-    pub default_zoom65: CheckMenuItem,
-    pub default_image: CheckMenuItem,
-    pub default_gif: CheckMenuItem,
-    pub default_battery: CheckMenuItem,
     // Settings toggles
     pub toggle_weather: CheckMenuItem,
     pub toggle_system: CheckMenuItem,
@@ -145,46 +121,22 @@ impl MenuItems {
             self.media_menu_visible.set(false);
         }
 
-        // Update screen position radio buttons
+        // Update screen checkmarks to show current default
         let screen_items = [
-            (&self.screen_cpu, "system_cpu"),
-            (&self.screen_gpu, "system_gpu"),
-            (&self.screen_download, "system_download"),
-            (&self.screen_time, "time_time"),
-            (&self.screen_weather, "time_weather"),
-            (&self.screen_meletrix, "logo_meletrix"),
-            (&self.screen_zoom65, "logo_zoom65"),
-            (&self.screen_image, "logo_image"),
-            (&self.screen_gif, "logo_gif"),
+            (&self.screen_cpu, "cpu"),
+            (&self.screen_gpu, "gpu"),
+            (&self.screen_download, "download"),
+            (&self.screen_time, "time"),
+            (&self.screen_weather, "weather"),
+            (&self.screen_meletrix, "meletrix"),
+            (&self.screen_zoom65, "zoom65"),
+            (&self.screen_image, "image"),
+            (&self.screen_gif, "gif"),
             (&self.screen_battery, "battery"),
         ];
 
-        // Determine current screen string
-        let current = state.current_screen.as_deref().unwrap_or_default();
-
-        for (item, id) in screen_items {
-            item.set_checked(current == id);
-        }
-
-        // Enable/disable default screen submenu based on screen feature
-        self.default_screen_submenu.set_enabled(has_screen);
-
-        // Update default screen radio buttons
-        let default_items = [
-            (&self.default_cpu, "cpu"),
-            (&self.default_gpu, "gpu"),
-            (&self.default_download, "download"),
-            (&self.default_time, "time"),
-            (&self.default_weather, "weather"),
-            (&self.default_meletrix, "meletrix"),
-            (&self.default_zoom65, "zoom65"),
-            (&self.default_image, "image"),
-            (&self.default_gif, "gif"),
-            (&self.default_battery, "battery"),
-        ];
-
         let default_screen = &state.config.general.initial_screen;
-        for (item, id) in default_items {
+        for (item, id) in screen_items {
             item.set_checked(default_screen == id);
         }
 
@@ -218,7 +170,7 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
     menu.append(&PredefinedMenuItem::separator()).unwrap();
 
     // Screen position submenu
-    let screen_submenu = Submenu::new("Screen Position", true);
+    let screen_submenu = Submenu::new("Set Screen", true);
 
     let screen_cpu = CheckMenuItem::with_id(
         ids::SCREEN_CPU,
@@ -339,105 +291,6 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
 
     // Don't append nav_submenu yet - added dynamically when connected
 
-    // Default screen submenu (disabled until board connects with screen feature)
-    let default_screen_submenu = Submenu::new("Default Screen", false);
-    let initial = &state.config.general.initial_screen;
-
-    let default_cpu = CheckMenuItem::with_id(
-        ids::DEFAULT_SCREEN_CPU,
-        "CPU Temp",
-        true,
-        initial == "cpu",
-        None::<Accelerator>,
-    );
-    let default_gpu = CheckMenuItem::with_id(
-        ids::DEFAULT_SCREEN_GPU,
-        "GPU Temp",
-        true,
-        initial == "gpu",
-        None::<Accelerator>,
-    );
-    let default_download = CheckMenuItem::with_id(
-        ids::DEFAULT_SCREEN_DOWNLOAD,
-        "Download",
-        true,
-        initial == "download",
-        None::<Accelerator>,
-    );
-    default_screen_submenu.append(&default_cpu).unwrap();
-    default_screen_submenu.append(&default_gpu).unwrap();
-    default_screen_submenu.append(&default_download).unwrap();
-    default_screen_submenu
-        .append(&PredefinedMenuItem::separator())
-        .unwrap();
-
-    let default_time = CheckMenuItem::with_id(
-        ids::DEFAULT_SCREEN_TIME,
-        "Time",
-        true,
-        initial == "time",
-        None::<Accelerator>,
-    );
-    let default_weather = CheckMenuItem::with_id(
-        ids::DEFAULT_SCREEN_WEATHER,
-        "Weather",
-        true,
-        initial == "weather",
-        None::<Accelerator>,
-    );
-    default_screen_submenu.append(&default_time).unwrap();
-    default_screen_submenu.append(&default_weather).unwrap();
-    default_screen_submenu
-        .append(&PredefinedMenuItem::separator())
-        .unwrap();
-
-    let default_meletrix = CheckMenuItem::with_id(
-        ids::DEFAULT_SCREEN_MELETRIX,
-        "Meletrix Logo",
-        true,
-        initial == "meletrix",
-        None::<Accelerator>,
-    );
-    let default_zoom65 = CheckMenuItem::with_id(
-        ids::DEFAULT_SCREEN_ZOOM65,
-        "Zoom65 Logo",
-        true,
-        initial == "zoom65",
-        None::<Accelerator>,
-    );
-    let default_image = CheckMenuItem::with_id(
-        ids::DEFAULT_SCREEN_IMAGE,
-        "Custom Image",
-        true,
-        initial == "image",
-        None::<Accelerator>,
-    );
-    let default_gif = CheckMenuItem::with_id(
-        ids::DEFAULT_SCREEN_GIF,
-        "Custom GIF",
-        true,
-        initial == "gif",
-        None::<Accelerator>,
-    );
-    default_screen_submenu.append(&default_meletrix).unwrap();
-    default_screen_submenu.append(&default_zoom65).unwrap();
-    default_screen_submenu.append(&default_image).unwrap();
-    default_screen_submenu.append(&default_gif).unwrap();
-    default_screen_submenu
-        .append(&PredefinedMenuItem::separator())
-        .unwrap();
-
-    let default_battery = CheckMenuItem::with_id(
-        ids::DEFAULT_SCREEN_BATTERY,
-        "Battery",
-        true,
-        initial == "battery",
-        None::<Accelerator>,
-    );
-    default_screen_submenu.append(&default_battery).unwrap();
-
-    // Don't append default_screen_submenu yet - added dynamically when connected
-
     // Media submenu
     let media_submenu = Submenu::new("Media", true);
     media_submenu
@@ -521,8 +374,6 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
     menu.append(&toggle_system).unwrap();
     menu.append(&toggle_12hr).unwrap();
     menu.append(&toggle_fahrenheit).unwrap();
-    // Default screen starts disabled until board connects with screen feature
-    menu.append(&default_screen_submenu).unwrap();
 
     #[cfg(target_os = "linux")]
     let toggle_reactive = {
@@ -583,7 +434,6 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
         screen_submenu,
         nav_submenu,
         media_submenu,
-        default_screen_submenu,
         screen_menus_visible: std::cell::Cell::new(false),
         media_menu_visible: std::cell::Cell::new(false),
         screen_cpu,
@@ -596,16 +446,6 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
         screen_image,
         screen_gif,
         screen_battery,
-        default_cpu,
-        default_gpu,
-        default_download,
-        default_time,
-        default_weather,
-        default_meletrix,
-        default_zoom65,
-        default_image,
-        default_gif,
-        default_battery,
         toggle_weather,
         toggle_system,
         toggle_12hr,
@@ -658,26 +498,6 @@ pub fn handle_menu_event(event: MenuEvent) -> MenuAction {
         ids::TOGGLE_FAHRENHEIT => MenuAction::Command(TrayCommand::ToggleFahrenheit),
         #[cfg(target_os = "linux")]
         ids::TOGGLE_REACTIVE => MenuAction::Command(TrayCommand::ToggleReactiveMode),
-
-        // Default screen
-        ids::DEFAULT_SCREEN_CPU => MenuAction::Command(TrayCommand::SetDefaultScreen("cpu")),
-        ids::DEFAULT_SCREEN_GPU => MenuAction::Command(TrayCommand::SetDefaultScreen("gpu")),
-        ids::DEFAULT_SCREEN_DOWNLOAD => {
-            MenuAction::Command(TrayCommand::SetDefaultScreen("download"))
-        },
-        ids::DEFAULT_SCREEN_TIME => MenuAction::Command(TrayCommand::SetDefaultScreen("time")),
-        ids::DEFAULT_SCREEN_WEATHER => {
-            MenuAction::Command(TrayCommand::SetDefaultScreen("weather"))
-        },
-        ids::DEFAULT_SCREEN_MELETRIX => {
-            MenuAction::Command(TrayCommand::SetDefaultScreen("meletrix"))
-        },
-        ids::DEFAULT_SCREEN_ZOOM65 => MenuAction::Command(TrayCommand::SetDefaultScreen("zoom65")),
-        ids::DEFAULT_SCREEN_IMAGE => MenuAction::Command(TrayCommand::SetDefaultScreen("image")),
-        ids::DEFAULT_SCREEN_GIF => MenuAction::Command(TrayCommand::SetDefaultScreen("gif")),
-        ids::DEFAULT_SCREEN_BATTERY => {
-            MenuAction::Command(TrayCommand::SetDefaultScreen("battery"))
-        },
 
         // Media - file dialogs need async handling
         ids::UPLOAD_IMAGE => MenuAction::PickImage,

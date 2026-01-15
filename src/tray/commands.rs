@@ -5,10 +5,8 @@ use crate::config::Config;
 /// Commands sent from tray menu to the daemon
 #[derive(Debug, Clone)]
 pub enum TrayCommand {
-    /// Set screen to specific position (by ID)
+    /// Set screen to specific position (by ID) and save as default
     SetScreen(&'static str),
-    /// Set default screen on connection (by ID)
-    SetDefaultScreen(&'static str),
     /// Move screen up
     ScreenUp,
     /// Move screen down

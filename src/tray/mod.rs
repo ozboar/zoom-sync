@@ -4,25 +4,6 @@ use std::error::Error;
 use std::io::{stdout, Seek, Write};
 use std::time::Duration;
 
-/// Errors that can occur during image/gif processing
-#[derive(Debug, thiserror::Error)]
-pub enum ImageProcessingError {
-    #[error("failed to open file: {0}")]
-    OpenFile(#[from] std::io::Error),
-    #[error("failed to decode image: {0}")]
-    DecodeImage(#[from] image::ImageError),
-    #[error("failed to encode image")]
-    EncodeImage,
-    #[error("failed to encode gif")]
-    EncodeGif,
-    #[error("png is not animated")]
-    NotAnimatedPng,
-    #[error("webp is not animated")]
-    NotAnimatedWebp,
-    #[error("unsupported animation format")]
-    UnsupportedFormat,
-}
-
 use chrono::DurationRound;
 use either::Either;
 use futures::future::OptionFuture;
@@ -49,6 +30,25 @@ pub use commands::{ConnectionStatus, TrayCommand, TrayState};
 
 /// Icon bytes embedded at compile time
 const MELETRIX_ICON_32: &[u8] = include_bytes!("../../assets/meletrix_icon_32.png");
+
+/// Errors that can occur during image/gif processing
+#[derive(Debug, thiserror::Error)]
+pub enum ImageProcessingError {
+    #[error("failed to open file: {0}")]
+    OpenFile(#[from] std::io::Error),
+    #[error("failed to decode image: {0}")]
+    DecodeImage(#[from] image::ImageError),
+    #[error("failed to encode image")]
+    EncodeImage,
+    #[error("failed to encode gif")]
+    EncodeGif,
+    #[error("png is not animated")]
+    NotAnimatedPng,
+    #[error("webp is not animated")]
+    NotAnimatedWebp,
+    #[error("unsupported animation format")]
+    UnsupportedFormat,
+}
 
 /// Run the tray application
 pub fn run_tray_app() -> Result<(), Box<dyn Error>> {
@@ -416,6 +416,9 @@ async fn handle_command(
                     match screen.set_screen(id) {
                         Ok(()) => {
                             state.current_screen = Some(id.to_string());
+                            // Also save as default
+                            state.config.general.initial_screen = id.to_string();
+                            let _ = state.config.save();
                             menu_items.update_from_state(state, board);
                             println!("set screen to {id}");
                         },
@@ -423,12 +426,6 @@ async fn handle_command(
                     }
                 }
             }
-        },
-        TrayCommand::SetDefaultScreen(id) => {
-            state.config.general.initial_screen = id.to_string();
-            let _ = state.config.save();
-            menu_items.update_from_state(state, board);
-            println!("default screen: {id}");
         },
         TrayCommand::ScreenUp => {
             if let Some(ref mut b) = board {
@@ -554,11 +551,11 @@ async fn handle_command(
                         Ok(()) => {
                             println!("done");
                             notify_success("Image");
-                        }
+                        },
                         Err(e) => {
                             eprintln!("failed to upload image: {e}");
                             notify_error(&format!("Failed to upload image: {e}"));
-                        }
+                        },
                     }
                 }
             }
@@ -586,11 +583,11 @@ async fn handle_command(
                         Ok(()) => {
                             println!("done");
                             notify_success("GIF");
-                        }
+                        },
                         Err(e) => {
                             eprintln!("failed to upload gif: {e}");
                             notify_error(&format!("Failed to upload GIF: {e}"));
-                        }
+                        },
                     }
                 }
             }
