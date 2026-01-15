@@ -10,6 +10,6 @@ mod features;
 
 pub use board::{Board, BoardInfo, ScreenGroup, ScreenPosition};
 pub use features::{
-    BoardError, HasGif, HasImage, HasScreen, HasScreenSize, HasSystemInfo, HasTime, HasWeather,
-    Result,
+    BoardError, HasGif, HasImage, HasScreen, HasScreenSize, HasSystemInfo, HasTheme, HasTime,
+    HasWeather, Result,
 };

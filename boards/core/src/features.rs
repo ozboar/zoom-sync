@@ -87,3 +87,12 @@ pub trait HasGif {
     fn upload_gif(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()>;
     fn clear_gif(&mut self) -> Result<()>;
 }
+
+/// Theme customization capability (background color, font color)
+pub trait HasTheme {
+    /// Set screen theme with RGB565 colors
+    /// - bg_color: Background color as RGB565 (16-bit)
+    /// - font_color: Font color as RGB565 (16-bit)
+    /// - theme_id: Theme preset ID
+    fn set_theme(&mut self, bg_color: u16, font_color: u16, theme_id: u8) -> Result<()>;
+}

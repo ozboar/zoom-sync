@@ -62,4 +62,7 @@ pub trait Board: Send {
     fn as_gif(&mut self) -> Option<&mut dyn HasGif> {
         None
     }
+    fn as_theme(&mut self) -> Option<&mut dyn HasTheme> {
+        None
+    }
 }
