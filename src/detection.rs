@@ -5,6 +5,7 @@ use std::str::FromStr;
 use bpaf::Bpaf;
 use hidapi::HidApi;
 use zoom65v3::{Zoom65v3, INFO as ZOOM65V3_INFO};
+use zoom_tkl_dyna::{ZoomTklDyna, INFO as ZOOM_TKL_DYNA_INFO};
 use zoom_sync_core::{Board, BoardError, BoardInfo};
 
 /// Supported board types
@@ -16,6 +17,8 @@ pub enum BoardKind {
     Auto,
     /// Zoom65 V3
     Zoom65v3,
+    /// Zoom TKL Dyna
+    ZoomTklDyna,
 }
 
 impl FromStr for BoardKind {
@@ -25,7 +28,10 @@ impl FromStr for BoardKind {
         match s.to_lowercase().as_str() {
             "auto" => Ok(Self::Auto),
             "zoom65v3" => Ok(Self::Zoom65v3),
-            _ => Err(format!("unknown board: {s}. Available: auto, zoom65v3")),
+            "zoom-tkl-dyna" | "zoomtkldyna" => Ok(Self::ZoomTklDyna),
+            _ => Err(format!(
+                "unknown board: {s}. Available: auto, zoom65v3, zoom-tkl-dyna"
+            )),
         }
     }
 }
@@ -54,22 +60,27 @@ impl BoardKind {
         match self {
             BoardKind::Auto => {
                 // Single HID iteration, check each board's INFO
+                // Note: Zoom65v3 is checked first because it has more specific matching
+                // (vendor_id + product_id), while ZoomTklDyna only uses usage_page + usage
                 let api = HidApi::new()?;
                 for device in api.device_list() {
                     if matches(device, &ZOOM65V3_INFO) {
                         return Ok(Box::new(Zoom65v3::open()?));
                     }
-                    // Add more boards here as they're implemented
+                    if matches(device, &ZOOM_TKL_DYNA_INFO) {
+                        return Ok(Box::new(ZoomTklDyna::open()?));
+                    }
                 }
                 Err(BoardError::DeviceNotFound)
             },
             BoardKind::Zoom65v3 => Ok(Box::new(Zoom65v3::open()?)),
+            BoardKind::ZoomTklDyna => Ok(Box::new(ZoomTklDyna::open()?)),
         }
     }
 
     /// List all supported board CLI names
     #[allow(dead_code)]
     pub fn supported_boards() -> &'static [&'static str] {
-        &["auto", "zoom65v3"]
+        &["auto", "zoom65v3", "zoom-tkl-dyna"]
     }
 }

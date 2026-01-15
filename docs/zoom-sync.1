@@ -4,7 +4,8 @@
 .PP
 .SH SYNOPSIS
 .nf
-\fBzoom\-sync\fP\fR \fP\fR([\fP\fB\-S\fP\fR=\fP\fIARG\fP\fR] [\fP\fB\-W\fP\fR=\fP\fIARG\fP\fR] [\fP\fB\-R\fP\fR=\fP\fIARG\fP\fR] [\fP\fB\-f\fP\fR] [\fP\fB\-\-reactive\fP\fR | (\fP\fB\-s\fP\fR=\fP\fIPOSITION\fP\fR | \fP\fB\-\-up\fP\fR | \fP\fB\-\-down\fP\fR | \fP\fB\-\-switch\fP\fR)] (\fP\fB\-\-no\-weather\fP\fR | [\fP\fB\-\-coords\fP\fR \fP\fILAT\fP\fR \fP\fILON\fP\fR] | \fP\fB\-w\fP\fR \fP\fIWMO\fP\fR \fP\fICUR\fP\fR \fP\fIMIN\fP\fR \fP\fIMAX\fP\fR) (\fP\fB\-\-no\-system\fP\fR | ([\fP\fB\-\-cpu\fP\fR=\fP\fILABEL\fP\fR] | \fP\fB\-c\fP\fR=\fP\fITEMP\fP\fR) ([\fP\fB\-\-gpu\fP\fR=\fP\fIID\fP\fR] | \fP\fB\-g\fP\fR=\fP\fITEMP\fP\fR) [\fP\fB\-d\fP\fR=\fP\fIARG\fP\fR]) | \fP\fICOMMAND ...\fP\fR)\fP\fR
+\fBzoom\-sync\fP\fR \fP\fR[\fP\fB\-b\fP\fR=\fP\fIBOARD\fP\fR] [\fP\fICOMMAND ...\fP\fR]\fP\fR
+\fP\fBzoom\-sync\fP\fR \fP\fBtray\fP\fR \fP\fR
 \fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fICOMMAND ...\fP\fR
 \fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBtime\fP\fR \fP\fR
 \fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBweather\fP\fR \fP\fR[\fP\fB\-f\fP\fR] (\fP\fB\-\-no\-weather\fP\fR | [\fP\fB\-\-coords\fP\fR \fP\fILAT\fP\fR \fP\fILON\fP\fR] | \fP\fB\-w\fP\fR \fP\fIWMO\fP\fR \fP\fICUR\fP\fR \fP\fIMIN\fP\fR \fP\fIMAX\fP\fR)\fP\fR
@@ -21,131 +22,12 @@
 .SH NAME
 \fRzoom\-sync \- \fP\fRCross\-platform utility for syncing zoom65v3 screen modules\fP
 .SH SYNOPSIS
-\fBzoom\-sync\fP\fR \fP\fR([\fP\fB\-S\fP\fR=\fP\fIARG\fP\fR] [\fP\fB\-W\fP\fR=\fP\fIARG\fP\fR] [\fP\fB\-R\fP\fR=\fP\fIARG\fP\fR] [\fP\fB\-f\fP\fR] [\fP\fB\-\-reactive\fP\fR | (\fP\fB\-s\fP\fR=\fP\fIPOSITION\fP\fR | \fP\fB\-\-up\fP\fR | \fP\fB\-\-down\fP\fR | \fP\fB\-\-switch\fP\fR)] (\fP\fB\-\-no\-weather\fP\fR | [\fP\fB\-\-coords\fP\fR \fP\fILAT\fP\fR \fP\fILON\fP\fR] | \fP\fB\-w\fP\fR \fP\fIWMO\fP\fR \fP\fICUR\fP\fR \fP\fIMIN\fP\fR \fP\fIMAX\fP\fR) (\fP\fB\-\-no\-system\fP\fR | ([\fP\fB\-\-cpu\fP\fR=\fP\fILABEL\fP\fR] | \fP\fB\-c\fP\fR=\fP\fITEMP\fP\fR) ([\fP\fB\-\-gpu\fP\fR=\fP\fIID\fP\fR] | \fP\fB\-g\fP\fR=\fP\fITEMP\fP\fR) [\fP\fB\-d\fP\fR=\fP\fIARG\fP\fR]) | \fP\fICOMMAND ...\fP\fR)\fP
-.PP
-.SS SCREEN\ OPTIONS:
-.TP
-\fB    \-\-reactive\fP
-\fREnable reactive mode, playing gif when typing and image when resting. Requires root permission for reading keypresses via evdev\fP
-.PP
-.TP
-\fB\-s\fP\fR, \fP\fB\-\-screen\fP\fR=\fP\fIPOSITION\fP
-\fRReset and move the screen to a specific position.
-[cpu|gpu|download|time|weather|meletrix|zoom65|image|gif|battery]\fP
-.PP
-.TP
-\fB    \-\-up\fP
-\fRMove the screen up\fP
-.PP
-.TP
-\fB    \-\-down\fP
-\fRMove the screen down\fP
-.PP
-.TP
-\fB    \-\-switch\fP
-\fRSwitch the screen offset\fP
-.PP
-.PP
-.SS WEATHER\ FORECAST\ OPTIONS:
-.TP
-\fB    \-\-no\-weather\fP
-\fRDisable updating weather info completely\fP
-.PP
-.SS --COORDS\ LAT\ LON
-.TP
-\fB    \-\-coords\fP
-\fROptional coordinates to use for fetching weather data, skipping ipinfo geolocation api.\fP
-.PP
-.TP
-\fILAT\fP
-\fRLatitude\fP
-.PP
-.TP
-\fILON\fP
-\fRLongitude\fP
-.PP
-.PP
-.SS -W\ WMO\ CUR\ MIN\ MAX
-.TP
-\fB\-w\fP\fR, \fP\fB\-\-weather\fP
-\fRManually provide weather data, skipping open\-meteo weather api. All values are
-unitless.\fP
-.PP
-.TP
-\fIWMO\fP
-\fRWMO Index\fP
-.PP
-.TP
-\fICUR\fP
-\fRCurrent temperature\fP
-.PP
-.TP
-\fIMIN\fP
-\fRMinumum temperature\fP
-.PP
-.TP
-\fIMAX\fP
-\fRMaximum temperature\fP
-.PP
-.PP
-.PP
-.SS SYSTEM\ INFO\ OPTIONS:
-.TP
-\fB    \-\-no\-system\fP
-\fRDisable updating system info completely\fP
-.PP
-.TP
-\fB    \-\-cpu\fP\fR=\fP\fILABEL\fP
-\fRSensor label to search for\fP
-.PP
-.TP
-\fR[default: coretemp Package]\fP
-.PP
-.TP
-\fB\-c\fP\fR, \fP\fB\-\-cpu\-temp\fP\fR=\fP\fITEMP\fP
-\fRManually set CPU temperature\fP
-.PP
-.TP
-\fB    \-\-gpu\fP\fR=\fP\fIID\fP
-\fRGPU device id to fetch temperature data for (nvidia only)\fP
-.PP
-.TP
-\fR[default: 0]\fP
-.PP
-.TP
-\fB\-g\fP\fR, \fP\fB\-\-gpu\-temp\fP\fR=\fP\fITEMP\fP
-\fRManually set GPU temperature\fP
-.PP
-.TP
-\fB\-d\fP\fR, \fP\fB\-\-download\fP\fR=\fP\fIARG\fP
-\fRManually set download speed\fP
-.PP
+\fBzoom\-sync\fP\fR \fP\fR[\fP\fB\-b\fP\fR=\fP\fIBOARD\fP\fR] [\fP\fICOMMAND ...\fP\fR]\fP
 .PP
 .SS AVAILABLE\ OPTIONS:
 .TP
-\fB\-S\fP\fR, \fP\fB\-\-refresh\-system\fP\fR=\fP\fIARG\fP
-\fRInterval in seconds to refresh system data\fP
-.PP
-.TP
-\fR[default: 10s]\fP
-.PP
-.TP
-\fB\-W\fP\fR, \fP\fB\-\-refresh\-weather\fP\fR=\fP\fIARG\fP
-\fRInterval in seconds to refresh weather data\fP
-.PP
-.TP
-\fR[default: 1h]\fP
-.PP
-.TP
-\fB\-R\fP\fR, \fP\fB\-\-retry\fP\fR=\fP\fIARG\fP
-\fRRetry interval for reconnecting to keyboard\fP
-.PP
-.TP
-\fR[default: 5s]\fP
-.PP
-.TP
-\fB\-f\fP\fR, \fP\fB\-\-farenheit\fP
-\fRUse farenheit for all fetched temperatures. May cause clamping for anything greater than 99F. No effect on any manually provided data.\fP
+\fB\-b\fP\fR, \fP\fB\-\-board\fP\fR=\fP\fIBOARD\fP
+\fRBoard to use (auto, zoom65v3). Defaults to auto\-detection.\fP
 .PP
 .TP
 \fB\-h\fP\fR, \fP\fB\-\-help\fP
@@ -158,13 +40,27 @@ unitless.\fP
 .PP
 .SS AVAILABLE\ COMMANDS:
 .TP
+\fBtray\fP
+\fRRun with a system tray menu for GUI control (default)\fP
+.PP
+.TP
 \fBset\fP
-\fRSet specific options on the keyboard.\fP
+\fRSet specific options on the keyboard\fP
+.PP
+.SH ZOOM-SYNC\ TRAY\ 
+.SH NAME
+\fRzoom\-sync \- \fP\fRRun with a system tray menu for GUI control\fP
+.SH SYNOPSIS
+\fBzoom\-sync\fP\fR \fP\fBtray\fP\fR \fP
+.PP
+.SS AVAILABLE\ OPTIONS:
+.TP
+\fB\-h\fP\fR, \fP\fB\-\-help\fP
+\fRPrints help information\fP
 .PP
 .SH ZOOM-SYNC\ SET\ 
 .SH NAME
-\fRzoom\-sync \- \fP\fRSet specific options on the keyboard.
-Must not be used while zoom\-sync is already running.\fP
+\fRzoom\-sync \- \fP\fRSet specific options on the keyboard\fP
 .SH SYNOPSIS
 \fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fICOMMAND ...\fP
 .PP
@@ -288,7 +184,7 @@ unitless.\fP
 \fRSensor label to search for\fP
 .PP
 .TP
-\fR[default: coretemp Package]\fP
+\fR[default: Package]\fP
 .PP
 .TP
 \fB\-c\fP\fR, \fP\fB\-\-cpu\-temp\fP\fR=\fP\fITEMP\fP

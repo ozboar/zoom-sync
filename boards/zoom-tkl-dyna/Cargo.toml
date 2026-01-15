@@ -1,0 +1,13 @@
+[package]
+name = "zoom-tkl-dyna"
+version = "0.1.0"
+description = "Reverse engineered hidapi bindings to zoom-tkl-dyna screen modules"
+repository = "https://github.com/ozwaldorf/zoom-sync"
+authors = [ "ozwaldorf <self@ossian.dev>" ]
+license = "MIT"
+edition = "2021"
+
+[dependencies]
+zoom-sync-core = { path = "../../zoom-sync-core" }
+hidapi = { workspace = true }
+chrono = { workspace = true }
