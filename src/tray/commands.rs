@@ -2,15 +2,13 @@
 
 use std::path::PathBuf;
 
-use zoom65v3::types::ScreenPosition;
-
 use crate::config::Config;
 
 /// Commands sent from tray menu to the daemon
 #[derive(Debug, Clone)]
 pub enum TrayCommand {
-    /// Set screen to specific position
-    SetScreen(ScreenPosition),
+    /// Set screen to specific position (by ID)
+    SetScreen(&'static str),
     /// Move screen up
     ScreenUp,
     /// Move screen down
@@ -67,7 +65,7 @@ impl ConnectionStatus {
 #[derive(Default)]
 pub struct TrayState {
     pub connection: ConnectionStatus,
-    pub current_screen: Option<ScreenPosition>,
+    pub current_screen: Option<String>,
     pub config: Config,
 }
 

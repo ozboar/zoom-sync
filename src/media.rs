@@ -7,15 +7,21 @@ use image::{imageops, DynamicImage, Frames, GenericImageView, ImageBuffer, Pixel
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 /// Encode an square image as rgb565 with an 8 bit alpha channel
-pub fn encode_image(image: DynamicImage, background: [u8; 3], nearest: bool) -> Option<Vec<u8>> {
+pub fn encode_image(
+    image: DynamicImage,
+    background: [u8; 3],
+    nearest: bool,
+    width: u32,
+    height: u32,
+) -> Option<Vec<u8>> {
     print!("resizing and encoding image ... ");
     stdout().flush().unwrap();
     let [br, bg, bb] = background;
 
     let buf = image
         .resize_to_fill(
-            110,
-            110,
+            width,
+            height,
             if nearest {
                 FilterType::Nearest
             } else {
@@ -41,27 +47,38 @@ pub fn encode_image(image: DynamicImage, background: [u8; 3], nearest: bool) -> 
             [x, y, 0xff]
         })
         .collect::<Vec<_>>();
-    debug_assert_eq!(buf.len(), 110 * 110 * 3);
+    debug_assert_eq!(buf.len(), (width * height * 3) as usize);
 
     println!("done");
     Some(buf)
 }
 
-/// Re-encode animation frames as a 111x111 gif
-pub fn encode_gif(frames: Frames, background: [u8; 3], nearest: bool) -> Option<Vec<u8>> {
+/// Re-encode animation frames as a gif
+pub fn encode_gif(
+    frames: Frames,
+    background: [u8; 3],
+    nearest: bool,
+    width: u32,
+    height: u32,
+) -> Option<Vec<u8>> {
     let frames = frames.collect_frames().ok()?;
     let len = frames.len();
     let [br, bg, bb] = background;
+    // GIF dimensions need to be +1 for some reason with zoom65v3
+    let gif_width = width + 1;
+    let gif_height = height + 1;
 
     let completed = AtomicU16::new(1);
     let new_frames = frames
         .par_iter()
         .map(|frame| {
-            let resized = resize_to_fill(frame.buffer(), 111, 111, nearest);
-            let mut buf = image::ImageBuffer::from_fn(111, 111, |_, _| [br, bg, bb, 0xff].into());
+            let resized = resize_to_fill(frame.buffer(), gif_width, gif_height, nearest);
+            let mut buf =
+                image::ImageBuffer::from_fn(gif_width, gif_height, |_, _| [br, bg, bb, 0xff].into());
             imageops::overlay(&mut buf, &resized, 0, 0);
 
-            let mut frame = gif::Frame::from_rgba(111, 111, &mut buf.into_vec());
+            let mut frame =
+                gif::Frame::from_rgba(gif_width as u16, gif_height as u16, &mut buf.into_vec());
             frame.make_lzw_pre_encoded();
             frame.needs_user_input = true;
             let i = completed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -73,7 +90,8 @@ pub fn encode_gif(frames: Frames, background: [u8; 3], nearest: bool) -> Option<
 
     let mut buf = Vec::new();
     {
-        let mut encoder = gif::Encoder::new(&mut buf, 111, 111, &[]).ok()?;
+        let mut encoder =
+            gif::Encoder::new(&mut buf, gif_width as u16, gif_height as u16, &[]).ok()?;
         encoder.set_repeat(gif::Repeat::Infinite).ok()?;
         for frame in new_frames {
             encoder.write_lzw_pre_encoded_frame(&frame).ok()?;

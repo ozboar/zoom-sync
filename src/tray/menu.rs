@@ -8,7 +8,6 @@ use muda::{
     accelerator::Accelerator, AboutMetadata, CheckMenuItem, Menu, MenuEvent, MenuItem,
     PredefinedMenuItem, Submenu,
 };
-use zoom65v3::types::ScreenPosition;
 
 use super::commands::{TrayCommand, TrayState};
 
@@ -86,22 +85,22 @@ impl MenuItems {
 
         // Update screen position radio buttons
         let screen_items = [
-            (&self.screen_cpu, "cpu"),
-            (&self.screen_gpu, "gpu"),
-            (&self.screen_download, "download"),
-            (&self.screen_time, "time"),
-            (&self.screen_weather, "weather"),
-            (&self.screen_meletrix, "meletrix"),
-            (&self.screen_zoom65, "zoom65"),
-            (&self.screen_image, "image"),
-            (&self.screen_gif, "gif"),
+            (&self.screen_cpu, "system_cpu"),
+            (&self.screen_gpu, "system_gpu"),
+            (&self.screen_download, "system_download"),
+            (&self.screen_time, "time_time"),
+            (&self.screen_weather, "time_weather"),
+            (&self.screen_meletrix, "logo_meletrix"),
+            (&self.screen_zoom65, "logo_zoom65"),
+            (&self.screen_image, "logo_image"),
+            (&self.screen_gif, "logo_gif"),
             (&self.screen_battery, "battery"),
         ];
 
         // Determine current screen string
         let current = state
             .current_screen
-            .map(|s| screen_position_to_id(&s))
+            .as_deref()
             .unwrap_or_default();
 
         for (item, id) in screen_items {
@@ -120,22 +119,6 @@ impl MenuItems {
         #[cfg(target_os = "linux")]
         self.toggle_reactive
             .set_checked(state.config.general.reactive_mode);
-    }
-}
-
-fn screen_position_to_id(pos: &ScreenPosition) -> &'static str {
-    use zoom65v3::types::{LogoOffset, SystemOffset, TimeOffset};
-    match pos {
-        ScreenPosition::System(SystemOffset::CpuTemp) => "cpu",
-        ScreenPosition::System(SystemOffset::GpuTemp) => "gpu",
-        ScreenPosition::System(SystemOffset::Download) => "download",
-        ScreenPosition::Time(TimeOffset::Time) => "time",
-        ScreenPosition::Time(TimeOffset::Weather) => "weather",
-        ScreenPosition::Logo(LogoOffset::Meletrix) => "meletrix",
-        ScreenPosition::Logo(LogoOffset::Zoom65) => "zoom65",
-        ScreenPosition::Logo(LogoOffset::Image) => "image",
-        ScreenPosition::Logo(LogoOffset::Gif) => "gif",
-        ScreenPosition::Battery => "battery",
     }
 }
 
@@ -392,39 +375,19 @@ pub fn build_menu(state: &TrayState) -> (Menu, MenuItems) {
 
 /// Handle a menu event and send appropriate command
 pub fn handle_menu_event(event: MenuEvent, cmd_tx: &UnboundedSender<TrayCommand>) -> bool {
-    use zoom65v3::types::{LogoOffset, SystemOffset, TimeOffset};
-
     let id = event.id().0.as_str();
     let cmd = match id {
         // Screen positions
-        ids::SCREEN_CPU => Some(TrayCommand::SetScreen(ScreenPosition::System(
-            SystemOffset::CpuTemp,
-        ))),
-        ids::SCREEN_GPU => Some(TrayCommand::SetScreen(ScreenPosition::System(
-            SystemOffset::GpuTemp,
-        ))),
-        ids::SCREEN_DOWNLOAD => Some(TrayCommand::SetScreen(ScreenPosition::System(
-            SystemOffset::Download,
-        ))),
-        ids::SCREEN_TIME => Some(TrayCommand::SetScreen(ScreenPosition::Time(
-            TimeOffset::Time,
-        ))),
-        ids::SCREEN_WEATHER => Some(TrayCommand::SetScreen(ScreenPosition::Time(
-            TimeOffset::Weather,
-        ))),
-        ids::SCREEN_MELETRIX => Some(TrayCommand::SetScreen(ScreenPosition::Logo(
-            LogoOffset::Meletrix,
-        ))),
-        ids::SCREEN_ZOOM65 => Some(TrayCommand::SetScreen(ScreenPosition::Logo(
-            LogoOffset::Zoom65,
-        ))),
-        ids::SCREEN_IMAGE => Some(TrayCommand::SetScreen(ScreenPosition::Logo(
-            LogoOffset::Image,
-        ))),
-        ids::SCREEN_GIF => {
-            Some(TrayCommand::SetScreen(ScreenPosition::Logo(LogoOffset::Gif)))
-        }
-        ids::SCREEN_BATTERY => Some(TrayCommand::SetScreen(ScreenPosition::Battery)),
+        ids::SCREEN_CPU => Some(TrayCommand::SetScreen("cpu")),
+        ids::SCREEN_GPU => Some(TrayCommand::SetScreen("gpu")),
+        ids::SCREEN_DOWNLOAD => Some(TrayCommand::SetScreen("download")),
+        ids::SCREEN_TIME => Some(TrayCommand::SetScreen("time")),
+        ids::SCREEN_WEATHER => Some(TrayCommand::SetScreen("weather")),
+        ids::SCREEN_MELETRIX => Some(TrayCommand::SetScreen("meletrix")),
+        ids::SCREEN_ZOOM65 => Some(TrayCommand::SetScreen("zoom65")),
+        ids::SCREEN_IMAGE => Some(TrayCommand::SetScreen("image")),
+        ids::SCREEN_GIF => Some(TrayCommand::SetScreen("gif")),
+        ids::SCREEN_BATTERY => Some(TrayCommand::SetScreen("battery")),
 
         // Navigation
         ids::NAV_UP => Some(TrayCommand::ScreenUp),

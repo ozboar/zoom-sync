@@ -8,7 +8,7 @@ use either::Either;
 use nvml_wrapper::enum_wrappers::device::TemperatureSensor;
 use nvml_wrapper::{Device, Nvml};
 use sysinfo::{Component, Components};
-use zoom65v3::Zoom65v3;
+use zoom_sync_core::Board;
 
 #[derive(Clone, Debug, bpaf::Bpaf)]
 pub enum CpuMode {
@@ -148,12 +148,16 @@ impl CpuTemp {
 }
 
 pub fn apply_system(
-    keyboard: &mut Zoom65v3,
+    board: &mut dyn Board,
     farenheit: bool,
     cpu: &mut Either<CpuTemp, u8>,
     gpu: &Either<GpuTemp, u8>,
     download: Option<f32>,
 ) -> Result<(), Box<dyn Error>> {
+    let system_info = board
+        .as_system_info()
+        .ok_or("board does not support system info")?;
+
     let mut cpu_temp = cpu
         .as_mut()
         .map_left(|c| c.get_temp(farenheit).unwrap_or_default())
@@ -176,7 +180,7 @@ pub fn apply_system(
 
     let download = download.unwrap_or_default();
 
-    keyboard
+    system_info
         .set_system_info(cpu_temp, gpu_temp, download)
         .map_err(|e| format!("failed to set system info: {e}"))?;
     println!(

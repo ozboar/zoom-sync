@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 chrono = { workspace = true }
+hidapi = { workspace = true }
 thiserror = "2.0"

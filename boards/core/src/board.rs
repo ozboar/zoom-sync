@@ -30,37 +30,6 @@ pub enum ScreenGroup {
     Battery,
 }
 
-/// Weather icon variants
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum WeatherIcon {
-    DayClear = 0,
-    DayPartlyCloudy = 1,
-    DayPartlyRainy = 2,
-    NightPartlyCloudy = 3,
-    NightClear = 4,
-    Cloudy = 5,
-    Rainy = 6,
-    Snowfall = 7,
-    Thunderstorm = 8,
-}
-
-impl WeatherIcon {
-    /// Convert a WMO weather code to an icon
-    pub fn from_wmo(wmo: u8, is_day: bool) -> Option<Self> {
-        match wmo {
-            0 | 1 => Some(if is_day { Self::DayClear } else { Self::NightClear }),
-            2 => Some(if is_day { Self::DayPartlyCloudy } else { Self::NightPartlyCloudy }),
-            3 | 45 | 48 => Some(Self::Cloudy),
-            51 | 53 | 55 | 56 | 57 | 61 | 63 | 65 | 66 | 67 => Some(Self::Rainy),
-            80..=82 => Some(if is_day { Self::DayPartlyRainy } else { Self::Rainy }),
-            71 | 73 | 75 | 77 | 85 | 86 => Some(Self::Snowfall),
-            95 | 96 | 99 => Some(Self::Thunderstorm),
-            _ => None,
-        }
-    }
-}
-
 /// Core board trait - object-safe for `dyn Board`
 ///
 /// Instance methods (`info`, `as_*`) are object-safe.

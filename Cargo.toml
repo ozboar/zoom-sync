@@ -12,12 +12,13 @@ members = ["boards/core", "boards/zoom65v3"]
 
 [workspace.dependencies]
 chrono = "0.4.38" # local time
+hidapi = { version = "2.6", features = ["windows-native"] } # board detection
 
 [dependencies]
 # keyboard management
 zoom-sync-core = { path = "./boards/core" }
 zoom65v3 = { path = "./boards/zoom65v3", version = "0.3" }
-hidapi = { version = "2.6", features = ["windows-native"] } # board detection
+hidapi = { workspace = true }
 
 # runtime and scaffalding
 tokio = { version = "1.41", features = ["full"] }

@@ -3,13 +3,43 @@
 //! Boards opt-in to features by implementing these traits and returning
 //! `Some(self)` from the corresponding `as_*()` method in the Board trait.
 
-use std::error::Error;
-
 use chrono::{DateTime, Local};
 
-use crate::{ScreenPosition, WeatherIcon};
+use crate::ScreenPosition;
 
-pub type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
+/// Errors that can occur during board operations
+#[derive(Debug, thiserror::Error)]
+pub enum BoardError {
+    /// Device was not found
+    #[error("device not found")]
+    DeviceNotFound,
+
+    /// Command failed on the device
+    #[error("command failed: {0}")]
+    CommandFailed(&'static str),
+
+    /// Invalid screen position
+    #[error("invalid screen position: {0}")]
+    InvalidScreenPosition(String),
+
+    /// Invalid media data
+    #[error("invalid media: {0}")]
+    InvalidMedia(&'static str),
+
+    /// Media too large for device
+    #[error("media too large: {0}")]
+    MediaTooLarge(&'static str),
+
+    /// HID communication error
+    #[error("hid error: {0}")]
+    Hid(#[from] hidapi::HidError),
+
+    /// Generic IO error
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
+}
+
+pub type Result<T> = std::result::Result<T, BoardError>;
 
 /// Time synchronization capability
 pub trait HasTime {
@@ -18,7 +48,8 @@ pub trait HasTime {
 
 /// Weather display capability
 pub trait HasWeather {
-    fn set_weather(&mut self, icon: WeatherIcon, current: u8, low: u8, high: u8) -> Result<()>;
+    /// Set weather display. WMO code is converted to board-specific icon internally.
+    fn set_weather(&mut self, wmo: u8, is_day: bool, current: u8, low: u8, high: u8) -> Result<()>;
 }
 
 /// System info display capability (CPU temp, GPU temp, download speed)
@@ -28,8 +59,10 @@ pub trait HasSystemInfo {
 
 /// Screen position control capability
 pub trait HasScreen {
+    /// Available screen positions for this board
     fn screen_positions(&self) -> &'static [ScreenPosition];
-    fn set_screen(&mut self, position: &ScreenPosition) -> Result<()>;
+    /// Set screen by position ID (e.g., "cpu", "weather", "gif")
+    fn set_screen(&mut self, id: &str) -> Result<()>;
     fn screen_up(&mut self) -> Result<()>;
     fn screen_down(&mut self) -> Result<()>;
     fn screen_switch(&mut self) -> Result<()>;

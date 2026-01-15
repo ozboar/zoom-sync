@@ -6,8 +6,7 @@ use bpaf::Bpaf;
 use chrono::Timelike;
 use ipinfo::IpInfo;
 use open_meteo_api::query::OpenMeteo;
-use zoom65v3::types::Icon;
-use zoom65v3::Zoom65v3;
+use zoom_sync_core::Board;
 
 #[derive(Clone, Debug, Bpaf)]
 #[bpaf(adjacent)]
@@ -68,12 +67,21 @@ pub async fn get_coords() -> Result<(f32, f32), Box<dyn Error>> {
     Ok((lat.parse().unwrap(), long.parse().unwrap()))
 }
 
+/// Weather data from API
+pub struct WeatherData {
+    pub wmo: u8,
+    pub is_day: bool,
+    pub current: f32,
+    pub min: f32,
+    pub max: f32,
+}
+
 /// Get the current weather, using ipinfo for geolocation, and open-meteo for forcasting
 pub async fn get_weather(
     lat: f32,
     long: f32,
-    farenheit: bool,
-) -> Result<(Icon, f32, f32, f32), Box<dyn Error>> {
+    fahrenheit: bool,
+) -> Result<WeatherData, Box<dyn Error>> {
     println!("fetching current weather from open-meteo for [{lat}, {long}] ...");
     let res = OpenMeteo::new()
         .coordinates(lat, long)?
@@ -84,28 +92,32 @@ pub async fn get_weather(
         .await?;
 
     let current = res.current_weather.unwrap();
-    let icon = Icon::from_wmo(current.weathercode as u8, current.is_day == 1.0).unwrap();
+    let wmo = current.weathercode as u8;
+    let is_day = current.is_day == 1.0;
 
     let daily = res.daily.unwrap();
     let mut min = daily.temperature_2m_min.first().unwrap().unwrap();
     let mut max = daily.temperature_2m_max.first().unwrap().unwrap();
     let mut temp = current.temperature;
 
-    // convert measurements to farenheit
-    if farenheit {
+    if fahrenheit {
         min = min * 9. / 5. + 32.;
         max = max * 9. / 5. + 32.;
         temp = temp * 9. / 5. + 32.;
     }
 
-    Ok((icon, min, max, temp))
+    Ok(WeatherData { wmo, is_day, current: temp, min, max })
 }
 
 pub async fn apply_weather(
-    keyboard: &mut Zoom65v3,
+    board: &mut dyn Board,
     args: &mut WeatherArgs,
     farenheit: bool,
 ) -> Result<(), Box<dyn Error>> {
+    let weather = board
+        .as_weather()
+        .ok_or("board does not support weather")?;
+
     match args {
         WeatherArgs::Disabled => println!("skipping weather"),
         WeatherArgs::Auto { coords } => {
@@ -126,12 +138,13 @@ pub async fn apply_weather(
             // try to update weather if we have some coordinates
             if let Some(Coords { lat, long, .. }) = *coords {
                 match get_weather(lat, long, farenheit).await {
-                    Ok((icon, min, max, temp)) => {
-                        keyboard
-                            .set_weather(icon.clone(), temp as u8, max as u8, min as u8)
+                    Ok(data) => {
+                        weather
+                            .set_weather(data.wmo, data.is_day, data.current as u8, data.min as u8, data.max as u8)
                             .map_err(|e| format!("failed to set weather: {e}"))?;
                         println!(
-                            "updated weather {{ icon: {icon:?}, current: {temp}, min: {min}, max: {max} }}"
+                            "updated weather {{ wmo: {}, is_day: {}, current: {}, min: {}, max: {} }}",
+                            data.wmo, data.is_day, data.current, data.min, data.max
                         );
                     },
                     Err(e) => eprintln!("failed to fetch weather, skipping: {e}"),
@@ -147,12 +160,7 @@ pub async fn apply_weather(
         } => {
             let hour = chrono::Local::now().hour();
             let is_day = (6..=18).contains(&hour);
-            keyboard.set_weather(
-                Icon::from_wmo(*wmo, is_day).ok_or("unknown WMO code")?,
-                *current,
-                *min,
-                *max,
-            )?;
+            weather.set_weather(*wmo, is_day, *current, *min, *max)?;
         },
     }
 

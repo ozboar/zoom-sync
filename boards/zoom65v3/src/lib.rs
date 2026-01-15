@@ -6,13 +6,11 @@ use checksum::checksum;
 use chrono::{DateTime, Datelike, Local, TimeZone, Timelike};
 use float::DumbFloat16;
 use hidapi::{HidApi, HidDevice};
-use types::{ScreenTheme, UploadChannel, Zoom65Result};
+use types::{Icon, ScreenPosition, ScreenTheme, UploadChannel};
 use zoom_sync_core::{
-    Board, BoardInfo, HasGif, HasImage, HasScreen, HasScreenSize, HasSystemInfo, HasTime,
-    HasWeather, ScreenGroup, ScreenPosition as CoreScreenPosition, WeatherIcon,
+    Board, BoardError, BoardInfo, HasGif, HasImage, HasScreen, HasScreenSize, HasSystemInfo,
+    HasTime, HasWeather, Result, ScreenGroup, ScreenPosition as CoreScreenPosition,
 };
-
-use crate::types::{Icon, ScreenPosition, Zoom65Error};
 
 pub mod abi;
 pub mod checksum;
@@ -38,16 +36,56 @@ pub static INFO: BoardInfo = BoardInfo {
 
 /// Screen positions for this board
 pub static SCREEN_POSITIONS: &[CoreScreenPosition] = &[
-    CoreScreenPosition { id: "cpu", display_name: "CPU Temp", group: ScreenGroup::System },
-    CoreScreenPosition { id: "gpu", display_name: "GPU Temp", group: ScreenGroup::System },
-    CoreScreenPosition { id: "download", display_name: "Download", group: ScreenGroup::System },
-    CoreScreenPosition { id: "time", display_name: "Time", group: ScreenGroup::Time },
-    CoreScreenPosition { id: "weather", display_name: "Weather", group: ScreenGroup::Time },
-    CoreScreenPosition { id: "meletrix", display_name: "Meletrix", group: ScreenGroup::Logo },
-    CoreScreenPosition { id: "zoom65", display_name: "Zoom65", group: ScreenGroup::Logo },
-    CoreScreenPosition { id: "image", display_name: "Image", group: ScreenGroup::Logo },
-    CoreScreenPosition { id: "gif", display_name: "GIF", group: ScreenGroup::Logo },
-    CoreScreenPosition { id: "battery", display_name: "Battery", group: ScreenGroup::Battery },
+    CoreScreenPosition {
+        id: "cpu",
+        display_name: "CPU Temp",
+        group: ScreenGroup::System,
+    },
+    CoreScreenPosition {
+        id: "gpu",
+        display_name: "GPU Temp",
+        group: ScreenGroup::System,
+    },
+    CoreScreenPosition {
+        id: "download",
+        display_name: "Download",
+        group: ScreenGroup::System,
+    },
+    CoreScreenPosition {
+        id: "time",
+        display_name: "Time",
+        group: ScreenGroup::Time,
+    },
+    CoreScreenPosition {
+        id: "weather",
+        display_name: "Weather",
+        group: ScreenGroup::Time,
+    },
+    CoreScreenPosition {
+        id: "meletrix",
+        display_name: "Meletrix",
+        group: ScreenGroup::Logo,
+    },
+    CoreScreenPosition {
+        id: "zoom65",
+        display_name: "Zoom65",
+        group: ScreenGroup::Logo,
+    },
+    CoreScreenPosition {
+        id: "image",
+        display_name: "Image",
+        group: ScreenGroup::Logo,
+    },
+    CoreScreenPosition {
+        id: "gif",
+        display_name: "GIF",
+        group: ScreenGroup::Logo,
+    },
+    CoreScreenPosition {
+        id: "battery",
+        display_name: "Battery",
+        group: ScreenGroup::Battery,
+    },
 ];
 
 /// Screen dimensions
@@ -66,7 +104,7 @@ pub struct Zoom65v3 {
 
 impl Zoom65v3 {
     /// Find and open the device for modifications
-    pub fn open() -> Result<Self, Zoom65Error> {
+    pub fn open() -> Result<Self> {
         API.write().unwrap().refresh_devices()?;
         let api = API.read().unwrap();
         let this = Self {
@@ -78,7 +116,7 @@ impl Zoom65v3 {
                         && d.usage_page() == consts::ZOOM65_USAGE_PAGE
                         && d.usage() == consts::ZOOM65_USAGE
                 })
-                .ok_or(Zoom65Error::DeviceNotFound)?
+                .ok_or(BoardError::DeviceNotFound)?
                 .open_device(&api)?,
             buf: [0u8; 64],
         };
@@ -87,7 +125,7 @@ impl Zoom65v3 {
     }
 
     /// Internal method to execute a payload and read the response
-    fn execute(&mut self, payload: [u8; 33]) -> Zoom65Result<Vec<u8>> {
+    fn execute(&mut self, payload: [u8; 33]) -> Result<Vec<u8>> {
         self.device.write(&payload)?;
         let len = self.device.read(&mut self.buf)?;
         let slice = &self.buf[..len];
@@ -97,51 +135,51 @@ impl Zoom65v3 {
 
     /// Set the screen theme. Will reset the screen back to the meletrix logo
     #[inline(always)]
-    pub fn screen_theme(&mut self, theme: ScreenTheme) -> Zoom65Result<()> {
+    pub fn screen_theme(&mut self, theme: ScreenTheme) -> Result<()> {
         let res = self.execute(abi::screen_theme(theme))?;
         (res[1] == 1 && res[2] == 1)
             .then_some(())
-            .ok_or(Zoom65Error::UpdateCommandFailed)
+            .ok_or(BoardError::CommandFailed("device rejected command"))
     }
 
     /// Increment the screen position
     #[inline(always)]
-    pub fn screen_up(&mut self) -> Zoom65Result<()> {
+    pub fn screen_up(&mut self) -> Result<()> {
         let res = self.execute(abi::screen_up())?;
         (res[1] == 1 && res[2] == 1)
             .then_some(())
-            .ok_or(Zoom65Error::UpdateCommandFailed)
+            .ok_or(BoardError::CommandFailed("device rejected command"))
     }
 
     /// Decrement the screen position
     #[inline(always)]
-    pub fn screen_down(&mut self) -> Zoom65Result<()> {
+    pub fn screen_down(&mut self) -> Result<()> {
         let res = self.execute(abi::screen_down())?;
         (res[1] == 1 && res[2] == 1)
             .then_some(())
-            .ok_or(Zoom65Error::UpdateCommandFailed)
+            .ok_or(BoardError::CommandFailed("device rejected command"))
     }
 
     /// Switch the active screen
     #[inline(always)]
-    pub fn screen_switch(&mut self) -> Zoom65Result<()> {
+    pub fn screen_switch(&mut self) -> Result<()> {
         let res = self.execute(abi::screen_switch())?;
         (res[1] == 1 && res[2] == 1)
             .then_some(())
-            .ok_or(Zoom65Error::UpdateCommandFailed)
+            .ok_or(BoardError::CommandFailed("device rejected command"))
     }
 
     /// Reset the screen back to the meletrix logo
     #[inline(always)]
-    pub fn reset_screen(&mut self) -> Zoom65Result<()> {
+    pub fn reset_screen(&mut self) -> Result<()> {
         let res = self.execute(abi::reset_screen())?;
         (res[1] == 1 && res[2] == 1)
             .then_some(())
-            .ok_or(Zoom65Error::UpdateCommandFailed)
+            .ok_or(BoardError::CommandFailed("device rejected command"))
     }
 
     /// Set the screen to a specific position and offset
-    pub fn set_screen(&mut self, position: ScreenPosition) -> Zoom65Result<()> {
+    pub fn set_screen(&mut self, position: ScreenPosition) -> Result<()> {
         let (y, x) = position.to_directions();
 
         // Back to default
@@ -173,7 +211,7 @@ impl Zoom65v3 {
     /// Update the keyboards current time.
     /// If 12hr is true, hardcodes the time to 01:00-12:00 for the current day.
     #[inline(always)]
-    pub fn set_time<Tz: TimeZone>(&mut self, time: DateTime<Tz>, _12hr: bool) -> Zoom65Result<()> {
+    pub fn set_time<Tz: TimeZone>(&mut self, time: DateTime<Tz>, _12hr: bool) -> Result<()> {
         let res = self.execute(abi::set_time(
             // Provide the current year without the century.
             // This prevents overflows on the year 2256 (meletrix web ui just subtracts 2000)
@@ -186,16 +224,16 @@ impl Zoom65v3 {
         ))?;
         (res[1] == 1 && res[2] == 1)
             .then_some(())
-            .ok_or(Zoom65Error::UpdateCommandFailed)
+            .ok_or(BoardError::CommandFailed("device rejected command"))
     }
 
     /// Update the keyboards current weather report
     #[inline(always)]
-    pub fn set_weather(&mut self, icon: Icon, current: u8, low: u8, high: u8) -> Zoom65Result<()> {
+    pub fn set_weather(&mut self, icon: Icon, current: u8, low: u8, high: u8) -> Result<()> {
         let res = self.execute(abi::set_weather(icon, current, low, high))?;
         (res[1] == 1 && res[2] == 1)
             .then_some(())
-            .ok_or(Zoom65Error::UpdateCommandFailed)
+            .ok_or(BoardError::CommandFailed("device rejected command"))
     }
 
     /// Update the keyboards current system info
@@ -205,12 +243,12 @@ impl Zoom65v3 {
         cpu_temp: u8,
         gpu_temp: u8,
         download_rate: f32,
-    ) -> Zoom65Result<()> {
+    ) -> Result<()> {
         let download = DumbFloat16::new(download_rate);
         let res = self.execute(abi::set_system_info(cpu_temp, gpu_temp, download))?;
         (res[1] == 1 && res[2] == 1)
             .then_some(())
-            .ok_or(Zoom65Error::UpdateCommandFailed)
+            .ok_or(BoardError::CommandFailed("device rejected command"))
     }
 
     fn upload_media(
@@ -218,17 +256,17 @@ impl Zoom65v3 {
         buf: impl AsRef<[u8]>,
         channel: UploadChannel,
         cb: impl Fn(usize),
-    ) -> Zoom65Result<()> {
+    ) -> Result<()> {
         let image = buf.as_ref();
 
         // start upload
         let res = self.execute(abi::upload_start(channel))?;
         if res[1] != 1 || res[2] != 1 {
-            return Err(Zoom65Error::UpdateCommandFailed);
+            return Err(BoardError::CommandFailed("device rejected command"));
         }
         let res = self.execute(abi::upload_length(image.len() as u32))?;
         if res[1] != 1 || res[2] != 1 {
-            return Err(Zoom65Error::UpdateCommandFailed);
+            return Err(BoardError::CommandFailed("device rejected command"));
         }
 
         for (i, chunk) in image.chunks(24).enumerate() {
@@ -265,13 +303,13 @@ impl Zoom65v3 {
             // send payload and read response
             let res = self.execute(buf)?;
             if res[1] != 1 || res[2] != 1 {
-                return Err(Zoom65Error::UpdateCommandFailed);
+                return Err(BoardError::CommandFailed("device rejected command"));
             }
         }
 
         let res = self.execute(abi::upload_end())?;
         if res[1] != 1 || res[2] != 1 {
-            return Err(Zoom65Error::UpdateCommandFailed);
+            return Err(BoardError::CommandFailed("device rejected command"));
         }
 
         // TODO: is this required?
@@ -282,75 +320,45 @@ impl Zoom65v3 {
 
     /// Upload an image to the keyboard. Must be encoded as 110x110 RGBA-3328 raw buffer
     #[inline(always)]
-    pub fn upload_image(&mut self, buf: impl AsRef<[u8]>, cb: impl Fn(usize)) -> Zoom65Result<()> {
+    pub fn upload_image(&mut self, buf: impl AsRef<[u8]>, cb: impl Fn(usize)) -> Result<()> {
         let buf = buf.as_ref();
         if buf.len() != 36300 {
-            return Err(Zoom65Error::GifTooLarge);
+            return Err(BoardError::MediaTooLarge(
+                "image must be exactly 36300 bytes",
+            ));
         }
         self.upload_media(buf, UploadChannel::Image, cb)
     }
 
     /// Upload a gif to the keyboard. Must be 111x111.
     #[inline(always)]
-    pub fn upload_gif(&mut self, buf: impl AsRef<[u8]>, cb: impl Fn(usize)) -> Zoom65Result<()> {
+    pub fn upload_gif(&mut self, buf: impl AsRef<[u8]>, cb: impl Fn(usize)) -> Result<()> {
         if buf.as_ref().len() >= 1013808 {
-            return Err(Zoom65Error::GifTooLarge);
+            return Err(BoardError::MediaTooLarge("gif exceeds device limit"));
         }
         self.upload_media(buf, UploadChannel::Gif, cb)
     }
 
     /// Clear the image slot
     #[inline(always)]
-    pub fn clear_image(&mut self) -> Zoom65Result<()> {
+    pub fn clear_image(&mut self) -> Result<()> {
         let res = self.execute(abi::delete_image())?;
         (res[1] == 1 && res[2] == 1)
             .then_some(())
-            .ok_or(Zoom65Error::UpdateCommandFailed)
+            .ok_or(BoardError::CommandFailed("device rejected command"))
     }
 
     /// Clear the gif slot
     #[inline(always)]
-    pub fn clear_gif(&mut self) -> Zoom65Result<()> {
+    pub fn clear_gif(&mut self) -> Result<()> {
         let res = self.execute(abi::delete_gif())?;
         (res[1] == 1 && res[2] == 1)
             .then_some(())
-            .ok_or(Zoom65Error::UpdateCommandFailed)
+            .ok_or(BoardError::CommandFailed("device rejected command"))
     }
 }
 
 // === Trait Implementations ===
-
-/// Convert CoreScreenPosition ID to types::ScreenPosition
-fn core_to_screen_position(pos: &CoreScreenPosition) -> Option<ScreenPosition> {
-    match pos.id {
-        "cpu" => Some(ScreenPosition::System(types::SystemOffset::CpuTemp)),
-        "gpu" => Some(ScreenPosition::System(types::SystemOffset::GpuTemp)),
-        "download" => Some(ScreenPosition::System(types::SystemOffset::Download)),
-        "time" => Some(ScreenPosition::Time(types::TimeOffset::Time)),
-        "weather" => Some(ScreenPosition::Time(types::TimeOffset::Weather)),
-        "meletrix" => Some(ScreenPosition::Logo(types::LogoOffset::Meletrix)),
-        "zoom65" => Some(ScreenPosition::Logo(types::LogoOffset::Zoom65)),
-        "image" => Some(ScreenPosition::Logo(types::LogoOffset::Image)),
-        "gif" => Some(ScreenPosition::Logo(types::LogoOffset::Gif)),
-        "battery" => Some(ScreenPosition::Battery),
-        _ => None,
-    }
-}
-
-/// Convert WeatherIcon to types::Icon
-fn weather_icon_to_icon(icon: WeatherIcon) -> Icon {
-    match icon {
-        WeatherIcon::DayClear => Icon::DayClear,
-        WeatherIcon::DayPartlyCloudy => Icon::DayPartlyCloudy,
-        WeatherIcon::DayPartlyRainy => Icon::DayPartlyRainy,
-        WeatherIcon::NightPartlyCloudy => Icon::NightPartlyCloudy,
-        WeatherIcon::NightClear => Icon::NightClear,
-        WeatherIcon::Cloudy => Icon::Cloudy,
-        WeatherIcon::Rainy => Icon::Rainy,
-        WeatherIcon::Snowfall => Icon::Snowfall,
-        WeatherIcon::Thunderstorm => Icon::Thunderstorm,
-    }
-}
 
 impl Board for Zoom65v3 {
     fn info(&self) -> &'static BoardInfo {
@@ -387,29 +395,22 @@ impl Board for Zoom65v3 {
 }
 
 impl HasTime for Zoom65v3 {
-    fn set_time(&mut self, time: DateTime<Local>, use_12hr: bool) -> zoom_sync_core::Result<()> {
+    fn set_time(&mut self, time: DateTime<Local>, use_12hr: bool) -> Result<()> {
         Zoom65v3::set_time(self, time, use_12hr)
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
     }
 }
 
 impl HasWeather for Zoom65v3 {
-    fn set_weather(
-        &mut self,
-        icon: WeatherIcon,
-        current: u8,
-        low: u8,
-        high: u8,
-    ) -> zoom_sync_core::Result<()> {
-        Zoom65v3::set_weather(self, weather_icon_to_icon(icon), current, low, high)
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+    fn set_weather(&mut self, wmo: u8, is_day: bool, current: u8, low: u8, high: u8) -> Result<()> {
+        let icon =
+            Icon::from_wmo(wmo, is_day).ok_or(BoardError::CommandFailed("unknown WMO code"))?;
+        Zoom65v3::set_weather(self, icon, current, low, high)
     }
 }
 
 impl HasSystemInfo for Zoom65v3 {
-    fn set_system_info(&mut self, cpu: u8, gpu: u8, download: f32) -> zoom_sync_core::Result<()> {
+    fn set_system_info(&mut self, cpu: u8, gpu: u8, download: f32) -> Result<()> {
         Zoom65v3::set_system_info(self, cpu, gpu, download)
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
     }
 }
 
@@ -418,31 +419,24 @@ impl HasScreen for Zoom65v3 {
         SCREEN_POSITIONS
     }
 
-    fn set_screen(&mut self, position: &CoreScreenPosition) -> zoom_sync_core::Result<()> {
-        let pos = core_to_screen_position(position)
-            .ok_or_else(|| format!("invalid screen position: {}", position.id))?;
-        Zoom65v3::set_screen(self, pos)
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+    fn set_screen(&mut self, id: &str) -> Result<()> {
+        Zoom65v3::set_screen(self, id.parse().map_err(BoardError::InvalidScreenPosition)?)
     }
 
-    fn screen_up(&mut self) -> zoom_sync_core::Result<()> {
+    fn screen_up(&mut self) -> Result<()> {
         Zoom65v3::screen_up(self)
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
     }
 
-    fn screen_down(&mut self) -> zoom_sync_core::Result<()> {
+    fn screen_down(&mut self) -> Result<()> {
         Zoom65v3::screen_down(self)
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
     }
 
-    fn screen_switch(&mut self) -> zoom_sync_core::Result<()> {
+    fn screen_switch(&mut self) -> Result<()> {
         Zoom65v3::screen_switch(self)
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
     }
 
-    fn reset_screen(&mut self) -> zoom_sync_core::Result<()> {
+    fn reset_screen(&mut self) -> Result<()> {
         Zoom65v3::reset_screen(self)
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
     }
 }
 
@@ -453,25 +447,21 @@ impl HasScreenSize for Zoom65v3 {
 }
 
 impl HasImage for Zoom65v3 {
-    fn upload_image(&mut self, data: &[u8], progress: &dyn Fn(usize)) -> zoom_sync_core::Result<()> {
+    fn upload_image(&mut self, data: &[u8], progress: &dyn Fn(usize)) -> Result<()> {
         Zoom65v3::upload_image(self, data, progress)
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
     }
 
-    fn clear_image(&mut self) -> zoom_sync_core::Result<()> {
+    fn clear_image(&mut self) -> Result<()> {
         Zoom65v3::clear_image(self)
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
     }
 }
 
 impl HasGif for Zoom65v3 {
-    fn upload_gif(&mut self, data: &[u8], progress: &dyn Fn(usize)) -> zoom_sync_core::Result<()> {
+    fn upload_gif(&mut self, data: &[u8], progress: &dyn Fn(usize)) -> Result<()> {
         Zoom65v3::upload_gif(self, data, progress)
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
     }
 
-    fn clear_gif(&mut self) -> zoom_sync_core::Result<()> {
+    fn clear_gif(&mut self) -> Result<()> {
         Zoom65v3::clear_gif(self)
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
     }
 }

@@ -14,7 +14,7 @@ use image::codecs::png::PngDecoder;
 use image::codecs::webp::WebPDecoder;
 use image::AnimationDecoder;
 use tokio_stream::StreamExt;
-use zoom65v3::Zoom65v3;
+use zoom_sync_core::Board;
 
 use crate::detection::{board_kind, BoardKind};
 use crate::info::{apply_system, cpu_mode, gpu_mode, system_args, CpuMode, GpuMode, SystemArgs};
@@ -165,7 +165,15 @@ impl FromStr for Color {
 
 #[derive(Clone, Debug, Bpaf)]
 #[bpaf(options, version, descr(env!("CARGO_PKG_DESCRIPTION")))]
-enum Cli {
+struct Cli {
+    #[bpaf(external(board_kind))]
+    board: BoardKind,
+    #[bpaf(external(command))]
+    command: Command,
+}
+
+#[derive(Clone, Debug, Bpaf)]
+enum Command {
     /// Update the keyboard periodically in a loop, reconnecting on errors.
     Run(#[bpaf(external(refresh_args))] RefreshArgs),
     /// Set specific options on the keyboard.
@@ -180,16 +188,17 @@ enum Cli {
     Tray,
 }
 
-pub fn apply_time(keyboard: &mut Zoom65v3, _12hr: bool) -> Result<(), Box<dyn Error>> {
+pub fn apply_time(board: &mut dyn Board, _12hr: bool) -> Result<(), Box<dyn Error>> {
     let time = chrono::Local::now();
-    keyboard
-        .set_time(time, _12hr)
-        .map_err(|e| format!("failed to set time: {e}"))?;
+    board
+        .as_time()
+        .ok_or("board does not support time")?
+        .set_time(time, _12hr)?;
     println!("updated time to {time}");
     Ok(())
 }
 
-async fn refresh(mut args: RefreshArgs) -> Result<(), Box<dyn Error>> {
+async fn refresh(board_kind: BoardKind, mut args: RefreshArgs) -> Result<(), Box<dyn Error>> {
     let mut cpu = match &args.system_args {
         SystemArgs::Disabled => None,
         SystemArgs::Enabled { cpu_mode, .. } => Some(cpu_mode.either()),
@@ -200,7 +209,7 @@ async fn refresh(mut args: RefreshArgs) -> Result<(), Box<dyn Error>> {
     };
 
     loop {
-        if let Err(e) = run(&mut args, &mut cpu, &gpu).await {
+        if let Err(e) = run(board_kind, &mut args, &mut cpu, &gpu).await {
             eprintln!("error: {e}\nreconnecting in {} seconds...", args.retry);
             tokio::time::sleep(args.retry.into()).await;
         }
@@ -208,22 +217,23 @@ async fn refresh(mut args: RefreshArgs) -> Result<(), Box<dyn Error>> {
 }
 
 async fn run(
+    board_kind: BoardKind,
     args: &mut RefreshArgs,
     cpu: &mut Option<Either<info::CpuTemp, u8>>,
     gpu: &Option<Either<info::GpuTemp, u8>>,
 ) -> Result<(), Box<dyn Error>> {
-    let mut keyboard = Zoom65v3::open()?;
-    println!("connected to keyboard");
+    let mut board = board_kind.as_board()?;
+    println!("connected to {}", board.info().name);
 
-    if let Some(ref args) = args.screen_args {
+    if let Some(ref screen_args) = args.screen_args {
         #[cfg(not(target_os = "linux"))]
         {
-            apply_screen(args, &mut keyboard)?;
+            apply_screen(screen_args, board.as_mut())?;
             println!("set screen");
         }
         #[cfg(target_os = "linux")]
-        if *args != ScreenArgs::Reactive {
-            apply_screen(args, &mut keyboard)?;
+        if *screen_args != ScreenArgs::Reactive {
+            apply_screen(screen_args, board.as_mut())?;
             println!("set screen");
         }
     }
@@ -235,18 +245,19 @@ async fn run(
         >,
     > = None;
     #[cfg(target_os = "linux")]
-    let mut reactive_stream = args.screen_args.and_then(|args| match args {
+    let mut reactive_stream = args.screen_args.clone().and_then(|screen_args| match screen_args {
         #[cfg(target_os = "linux")]
         ScreenArgs::Reactive => {
             println!("initializing reactive mode");
-            keyboard
-                .set_screen(zoom65v3::types::LogoOffset::Image.pos())
-                .unwrap();
+            if let Some(screen) = board.as_screen() {
+                // Find and set to image position
+                let _ = screen.set_screen("image");
+            }
             let stream = evdev::enumerate().find_map(|(_, device)| {
                 device
                     .name()
                     .unwrap()
-                    .contains("Zoom65 v3 Keyboard")
+                    .contains(board.info().name)
                     .then_some(
                         device
                             .into_event_stream()
@@ -265,7 +276,7 @@ async fn run(
     let mut is_reactive_running = false;
 
     // Sync time immediately, and if 12hr time is enabled, resync every next hour
-    apply_time(&mut keyboard, args._12hr)?;
+    apply_time(board.as_mut(), args._12hr)?;
     let mut time_interval = args._12hr.then_some({
         let now = chrono::Local::now();
 
@@ -287,15 +298,15 @@ async fn run(
     loop {
         tokio::select! {
             Some(_) = OptionFuture::from(time_interval.as_mut().map(|i| i.tick())) => {
-                apply_time(&mut keyboard, args._12hr)?;
+                apply_time(board.as_mut(), args._12hr)?;
             },
             _ = weather_interval.tick() => {
-                apply_weather(&mut keyboard, &mut args.weather_args, args.farenheit).await?
+                apply_weather(board.as_mut(), &mut args.weather_args, args.farenheit).await?
             },
             _ = system_interval.tick() => {
                 if let SystemArgs::Enabled { download, .. } = args.system_args {
                     apply_system(
-                        &mut keyboard,
+                        board.as_mut(),
                         args.farenheit,
                         cpu.as_mut().unwrap(),
                         gpu.as_ref().unwrap(),
@@ -313,15 +324,19 @@ async fn run(
                     Ok(Ok(ev)) if !is_reactive_running => {
                         if matches!(ev.kind(), evdev::InputEventKind::Key(_)) {
                             is_reactive_running = true;
-                            keyboard.screen_switch()?;
+                            if let Some(screen) = board.as_screen() {
+                                screen.screen_switch()?;
+                            }
                         }
                     },
                     // timeout, reset back to image
                     Err(_) if is_reactive_running => {
                         is_reactive_running = false;
-                        keyboard.reset_screen()?;
-                        keyboard.screen_switch()?;
-                        keyboard.screen_switch()?;
+                        if let Some(screen) = board.as_screen() {
+                            screen.reset_screen()?;
+                            screen.screen_switch()?;
+                            screen.screen_switch()?;
+                        }
                     },
                     _ => {}
                 }
@@ -331,62 +346,74 @@ async fn run(
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let args = cli().run();
-    match args {
-        Cli::Tray => {
+    let cli = cli().run();
+    match cli.command {
+        Command::Tray => {
             let _lock = lock::Lock::acquire()?;
             tray::run_tray_app()
         }
-        Cli::Run(args) => {
+        Command::Run(args) => {
             let _lock = lock::Lock::acquire()?;
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(refresh(args))
+            rt.block_on(refresh(cli.board, args))
         }
-        Cli::Set { set_command } => {
+        Command::Set { set_command } => {
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(async {
-                let mut keyboard = Zoom65v3::open()?;
+                let mut board = cli.board.as_board()?;
                 match set_command {
-                    SetCommand::Time => apply_time(&mut keyboard, false),
+                    SetCommand::Time => apply_time(board.as_mut(), false),
                     SetCommand::Weather {
                         farenheit,
                         mut weather_args,
-                    } => apply_weather(&mut keyboard, &mut weather_args, farenheit).await,
+                    } => apply_weather(board.as_mut(), &mut weather_args, farenheit).await,
                     SetCommand::System {
                         farenheit,
                         cpu_mode,
                         gpu_mode,
                         download,
                     } => apply_system(
-                        &mut keyboard,
+                        board.as_mut(),
                         farenheit,
                         &mut cpu_mode.either(),
                         &gpu_mode.either(),
                         download,
                     ),
-                    SetCommand::Screen(args) => apply_screen(&args, &mut keyboard),
+                    SetCommand::Screen(args) => apply_screen(&args, board.as_mut()),
                     SetCommand::Image(args) => match args {
                         SetMediaArgs::Set { nearest, path, bg } => {
+                            let (width, height) = board
+                                .as_screen_size()
+                                .ok_or("board does not support images")?;
                             let image = ::image::open(path)?;
                             // re-encode and upload to keyboard
-                            let encoded =
-                                encode_image(image, bg.0, nearest).ok_or("failed to encode image")?;
+                            let encoded = encode_image(image, bg.0, nearest, width, height)
+                                .ok_or("failed to encode image")?;
                             let len = encoded.len();
                             let total = len / 24;
-                            let width = total.to_string().len();
-                            keyboard.upload_image(encoded, |i| {
-                                print!("\ruploading {len} bytes ({i:width$}/{total}) ... ");
-                                stdout().flush().unwrap();
-                            })?;
+                            let fmt_width = total.to_string().len();
+                            board
+                                .as_image()
+                                .ok_or("board does not support images")?
+                                .upload_image(&encoded, &|i| {
+                                    print!("\ruploading {len} bytes ({i:fmt_width$}/{total}) ... ");
+                                    stdout().flush().unwrap();
+                                })?;
                             Ok(())
                         },
                         SetMediaArgs::Clear => {
-                            keyboard.clear_image()?;
+                            board
+                                .as_image()
+                                .ok_or("board does not support images")?
+                                .clear_image()?;
                             Ok(())
                         },
                     },
                     SetCommand::Gif(args) => match args {
                         SetMediaArgs::Set { nearest, path, bg } => {
+                            let (width, height) = board
+                                .as_screen_size()
+                                .ok_or("board does not support gifs")?;
                             print!("decoding animation ... ");
                             stdout().flush().unwrap();
                             let decoder = image::ImageReader::open(path)?
@@ -423,26 +450,36 @@ fn main() -> Result<(), Box<dyn Error>> {
                             println!("done");
 
                             // re-encode and upload to keyboard
-                            let encoded = encode_gif(frames, bg.0, nearest)
+                            let encoded = encode_gif(frames, bg.0, nearest, width, height)
                                 .ok_or("failed to encode gif image")?;
                             let len = encoded.len();
                             let total = len / 24;
-                            let width = total.to_string().len();
-                            keyboard.upload_gif(encoded, |i| {
-                                print!("\ruploading {len} bytes ({i:width$}/{total}) ... ");
-                                stdout().flush().unwrap();
-                            })?;
+                            let fmt_width = total.to_string().len();
+                            board
+                                .as_gif()
+                                .ok_or("board does not support gifs")?
+                                .upload_gif(&encoded, &|i| {
+                                    print!("\ruploading {len} bytes ({i:fmt_width$}/{total}) ... ");
+                                    stdout().flush().unwrap();
+                                })?;
                             println!("done");
                             Ok(())
                         },
                         SetMediaArgs::Clear => {
-                            keyboard.clear_gif()?;
+                            board
+                                .as_gif()
+                                .ok_or("board does not support gifs")?
+                                .clear_gif()?;
                             Ok(())
                         },
                     },
                     SetCommand::Clear => {
-                        keyboard.clear_image()?;
-                        keyboard.clear_gif()?;
+                        if let Some(img) = board.as_image() {
+                            img.clear_image()?;
+                        }
+                        if let Some(gif) = board.as_gif() {
+                            gif.clear_gif()?;
+                        }
                         println!("cleared media");
                         Ok(())
                     },

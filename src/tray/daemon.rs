@@ -3,7 +3,6 @@
 use std::error::Error;
 use std::io::{stdout, Seek, Write};
 use std::path::PathBuf;
-use tokio::sync::mpsc::UnboundedReceiver;
 use std::time::Duration;
 
 use either::Either;
@@ -12,10 +11,12 @@ use image::codecs::gif::GifDecoder;
 use image::codecs::png::PngDecoder;
 use image::codecs::webp::WebPDecoder;
 use image::AnimationDecoder;
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::watch;
 use tokio_stream::StreamExt;
-use zoom65v3::types::ScreenPosition;
-use zoom65v3::Zoom65v3;
+use zoom_sync_core::Board;
+
+use crate::detection::BoardKind;
 
 use super::commands::{ConnectionStatus, TrayCommand, TrayState};
 use crate::config::Config;
@@ -23,7 +24,7 @@ use crate::info::{apply_system, CpuTemp, GpuTemp};
 use crate::media::{encode_gif, encode_image};
 use crate::weather::apply_weather;
 
-/// Main daemon loop that handles commands and keyboard sync
+/// Main daemon loop that handles commands and board sync
 pub async fn daemon_loop(
     mut cmd_rx: UnboundedReceiver<TrayCommand>,
     state_tx: watch::Sender<TrayState>,
@@ -72,7 +73,7 @@ pub async fn daemon_loop(
                         let _ = state.config.save();
                         let _ = state_tx.send(state.clone());
                     }
-                    _ => {} // Other commands need keyboard connection
+                    _ => {} // Other commands need board connection
                 }
                 continue;
             }
@@ -80,22 +81,23 @@ pub async fn daemon_loop(
         }
 
         // Try to connect
-        match Zoom65v3::open() {
-            Ok(mut keyboard) => {
+        match BoardKind::Auto.as_board() {
+            Ok(mut board) => {
                 state.connection = ConnectionStatus::Connected;
                 let _ = state_tx.send(state.clone());
-                println!("connected to keyboard");
+                println!("connected to {}", board.info().name);
 
                 // Set initial screen if configured
-                if let Ok(pos) = state.config.general.initial_screen.parse::<ScreenPosition>() {
-                    if keyboard.set_screen(pos).is_ok() {
-                        state.current_screen = Some(pos);
+                if let Some(screen) = board.as_screen() {
+                    let initial = &state.config.general.initial_screen;
+                    if screen.set_screen(initial).is_ok() {
+                        state.current_screen = Some(initial.clone());
                         let _ = state_tx.send(state.clone());
                     }
                 }
 
                 // Run the connected loop
-                if let Err(e) = run_connected(&mut keyboard, &mut cmd_rx, &state_tx, &mut state).await {
+                if let Err(e) = run_connected(board.as_mut(), &mut cmd_rx, &state_tx, &mut state).await {
                     eprintln!("error: {e}");
                 }
 
@@ -117,7 +119,7 @@ pub async fn daemon_loop(
 }
 
 async fn run_connected(
-    keyboard: &mut Zoom65v3,
+    board: &mut dyn Board,
     cmd_rx: &mut UnboundedReceiver<TrayCommand>,
     state_tx: &watch::Sender<TrayState>,
     state: &mut TrayState,
@@ -136,7 +138,7 @@ async fn run_connected(
     };
 
     // Sync time immediately
-    crate::apply_time(keyboard, state.config.general.use_12hr_time)?;
+    crate::apply_time(board, state.config.general.use_12hr_time)?;
 
     // Set up time interval for 12hr mode
     let mut time_interval = state.config.general.use_12hr_time.then(|| {
@@ -189,12 +191,15 @@ async fn run_connected(
     #[cfg(target_os = "linux")]
     let mut reactive_stream = if state.config.general.reactive_mode {
         println!("initializing reactive mode");
-        keyboard.set_screen(zoom65v3::types::LogoOffset::Image.pos())?;
+        // Set to logo/image screen position for reactive mode
+        if let Some(screen) = board.as_screen() {
+            let _ = screen.set_screen("image");
+        }
         evdev::enumerate().find_map(|(_, device)| {
             device
                 .name()
                 .unwrap()
-                .contains("Zoom65 v3 Keyboard")
+                .contains(board.info().name)
                 .then_some(
                     device
                         .into_event_stream()
@@ -216,23 +221,31 @@ async fn run_connected(
                 match cmd {
                     TrayCommand::Quit => return Ok(()),
 
-                    TrayCommand::SetScreen(pos) => {
-                        keyboard.set_screen(pos)?;
-                        state.current_screen = Some(pos);
-                        let _ = state_tx.send(state.clone());
-                        println!("set screen to {:?}", pos);
+                    TrayCommand::SetScreen(id) => {
+                        if let Some(screen) = board.as_screen() {
+                            screen.set_screen(id)?;
+                            state.current_screen = Some(id.to_string());
+                            let _ = state_tx.send(state.clone());
+                            println!("set screen to {}", id);
+                        }
                     }
                     TrayCommand::ScreenUp => {
-                        keyboard.screen_up()?;
-                        println!("screen up");
+                        if let Some(screen) = board.as_screen() {
+                            screen.screen_up()?;
+                            println!("screen up");
+                        }
                     }
                     TrayCommand::ScreenDown => {
-                        keyboard.screen_down()?;
-                        println!("screen down");
+                        if let Some(screen) = board.as_screen() {
+                            screen.screen_down()?;
+                            println!("screen down");
+                        }
                     }
                     TrayCommand::ScreenSwitch => {
-                        keyboard.screen_switch()?;
-                        println!("screen switch");
+                        if let Some(screen) = board.as_screen() {
+                            screen.screen_switch()?;
+                            println!("screen switch");
+                        }
                     }
 
                     TrayCommand::ToggleWeather => {
@@ -254,7 +267,7 @@ async fn run_connected(
                     }
                     TrayCommand::Toggle12HrTime => {
                         state.config.general.use_12hr_time = !state.config.general.use_12hr_time;
-                        crate::apply_time(keyboard, state.config.general.use_12hr_time)?;
+                        crate::apply_time(board, state.config.general.use_12hr_time)?;
                         let _ = state.config.save();
                         let _ = state_tx.send(state.clone());
                         println!("12hr time: {}", state.config.general.use_12hr_time);
@@ -267,13 +280,13 @@ async fn run_connected(
 
                         // Immediately update displays with new temperature unit
                         if state.config.weather.enabled {
-                            if let Err(e) = apply_weather(keyboard, &mut weather_args, state.config.general.fahrenheit).await {
+                            if let Err(e) = apply_weather(board, &mut weather_args, state.config.general.fahrenheit).await {
                                 eprintln!("weather update failed: {e}");
                             }
                         }
                         if state.config.system_info.enabled {
                             if let (Some(ref mut c), Some(ref g)) = (&mut cpu, &gpu) {
-                                if let Err(e) = apply_system(keyboard, state.config.general.fahrenheit, c, g, None) {
+                                if let Err(e) = apply_system(board, state.config.general.fahrenheit, c, g, None) {
                                     eprintln!("system update failed: {e}");
                                 }
                             }
@@ -287,26 +300,34 @@ async fn run_connected(
                     }
 
                     TrayCommand::UploadImage(path) => {
-                        if let Err(e) = upload_image(keyboard, &path, &state.config) {
+                        if let Err(e) = upload_image(board, &path, &state.config) {
                             eprintln!("failed to upload image: {e}");
                         }
                     }
                     TrayCommand::UploadGif(path) => {
-                        if let Err(e) = upload_gif(keyboard, &path, &state.config) {
+                        if let Err(e) = upload_gif(board, &path, &state.config) {
                             eprintln!("failed to upload gif: {e}");
                         }
                     }
                     TrayCommand::ClearImage => {
-                        keyboard.clear_image()?;
-                        println!("cleared image");
+                        if let Some(image) = board.as_image() {
+                            image.clear_image()?;
+                            println!("cleared image");
+                        }
                     }
                     TrayCommand::ClearGif => {
-                        keyboard.clear_gif()?;
-                        println!("cleared gif");
+                        if let Some(gif) = board.as_gif() {
+                            gif.clear_gif()?;
+                            println!("cleared gif");
+                        }
                     }
                     TrayCommand::ClearAllMedia => {
-                        keyboard.clear_image()?;
-                        keyboard.clear_gif()?;
+                        if let Some(image) = board.as_image() {
+                            image.clear_image()?;
+                        }
+                        if let Some(gif) = board.as_gif() {
+                            gif.clear_gif()?;
+                        }
                         println!("cleared all media");
                     }
 
@@ -321,11 +342,11 @@ async fn run_connected(
                 }
             },
             Some(_) = OptionFuture::from(time_interval.as_mut().map(|i| i.tick())) => {
-                crate::apply_time(keyboard, state.config.general.use_12hr_time)?;
+                crate::apply_time(board, state.config.general.use_12hr_time)?;
             },
             _ = weather_interval.tick() => {
                 if state.config.weather.enabled {
-                    if let Err(e) = apply_weather(keyboard, &mut weather_args, state.config.general.fahrenheit).await {
+                    if let Err(e) = apply_weather(board, &mut weather_args, state.config.general.fahrenheit).await {
                         eprintln!("weather update failed: {e}");
                     }
                 }
@@ -334,7 +355,7 @@ async fn run_connected(
                 if state.config.system_info.enabled {
                     if let (Some(ref mut cpu), Some(ref gpu)) = (&mut cpu, &gpu) {
                         if let Err(e) = apply_system(
-                            keyboard,
+                            board,
                             state.config.general.fahrenheit,
                             cpu,
                             gpu,
@@ -352,14 +373,18 @@ async fn run_connected(
                     Ok(Ok(ev)) if !is_reactive_running => {
                         if matches!(ev.kind(), evdev::InputEventKind::Key(_)) {
                             is_reactive_running = true;
-                            keyboard.screen_switch()?;
+                            if let Some(screen) = board.as_screen() {
+                                screen.screen_switch()?;
+                            }
                         }
                     },
                     Err(_) if is_reactive_running => {
                         is_reactive_running = false;
-                        keyboard.reset_screen()?;
-                        keyboard.screen_switch()?;
-                        keyboard.screen_switch()?;
+                        if let Some(screen) = board.as_screen() {
+                            screen.reset_screen()?;
+                            screen.screen_switch()?;
+                            screen.screen_switch()?;
+                        }
                     },
                     _ => {}
                 }
@@ -369,20 +394,27 @@ async fn run_connected(
 }
 
 fn upload_image(
-    keyboard: &mut Zoom65v3,
+    board: &mut dyn Board,
     path: &PathBuf,
     config: &Config,
 ) -> Result<(), Box<dyn Error>> {
+    let (width, height) = board
+        .as_screen_size()
+        .ok_or("board does not support screen size")?;
+    let image_handler = board
+        .as_image()
+        .ok_or("board does not support images")?;
+
     let bg = parse_hex_color(&config.media.background_color).unwrap_or([0, 0, 0]);
     let image = image::open(path)?;
-    let encoded = encode_image(image, bg, config.media.use_nearest_neighbor)
+    let encoded = encode_image(image, bg, config.media.use_nearest_neighbor, width, height)
         .ok_or("failed to encode image")?;
 
     let len = encoded.len();
     let total = len / 24;
-    let width = total.to_string().len();
-    keyboard.upload_image(encoded, |i| {
-        print!("\ruploading {len} bytes ({i:width$}/{total}) ... ");
+    let progress_width = total.to_string().len();
+    image_handler.upload_image(&encoded, &|i| {
+        print!("\ruploading {len} bytes ({i:progress_width$}/{total}) ... ");
         stdout().flush().unwrap();
     })?;
     println!("done");
@@ -390,10 +422,17 @@ fn upload_image(
 }
 
 fn upload_gif(
-    keyboard: &mut Zoom65v3,
+    board: &mut dyn Board,
     path: &PathBuf,
     config: &Config,
 ) -> Result<(), Box<dyn Error>> {
+    let (width, height) = board
+        .as_screen_size()
+        .ok_or("board does not support screen size")?;
+    let gif_handler = board
+        .as_gif()
+        .ok_or("board does not support gifs")?;
+
     let bg = parse_hex_color(&config.media.background_color).unwrap_or([0, 0, 0]);
 
     print!("decoding animation ... ");
@@ -427,13 +466,14 @@ fn upload_gif(
     println!("done");
 
     let encoded =
-        encode_gif(frames, bg, config.media.use_nearest_neighbor).ok_or("failed to encode gif")?;
+        encode_gif(frames, bg, config.media.use_nearest_neighbor, width, height)
+            .ok_or("failed to encode gif")?;
 
     let len = encoded.len();
     let total = len / 24;
-    let width = total.to_string().len();
-    keyboard.upload_gif(encoded, |i| {
-        print!("\ruploading {len} bytes ({i:width$}/{total}) ... ");
+    let progress_width = total.to_string().len();
+    gif_handler.upload_gif(&encoded, &|i| {
+        print!("\ruploading {len} bytes ({i:progress_width$}/{total}) ... ");
         stdout().flush().unwrap();
     })?;
     println!("done");
