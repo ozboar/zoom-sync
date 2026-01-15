@@ -4789,6 +4789,11 @@ dependencies = [
 [[package]]
 name = "zoom-tiga-protocol"
 version = "0.1.0"
+dependencies = [
+ "image",
+ "rayon",
+ "rgb565",
+]
 
 [[package]]
 name = "zoom-tkl-dyna"
@@ -4796,9 +4801,6 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "hidapi",
- "image",
- "rayon",
- "rgb565",
  "zoom-sync-core",
  "zoom-tiga-protocol",
 ]
@@ -4818,9 +4820,6 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "hidapi",
- "image",
- "rayon",
- "rgb565",
  "zoom-sync-core",
  "zoom-tiga-protocol",
 ]

@@ -27,17 +27,17 @@ Cross-platform utility to sync Zoom65 v3 screen modules.
 
 ## Supported Boards
 
-| Feature             | Zoom65 V3          | Zoom TKL Dyna          |
-| ------------------- | ------------------ | ---------------------- |
-| Screen size         | 110x110            | 320x172                |
-| Time sync           | Yes                | Yes                    |
-| Weather             | Yes                | Yes                    |
-| System info         | Yes (CPU/GPU/DL)   | Needs research         |
-| Screen control      | Yes                | Not fully implemented  |
-| Image upload        | Yes                | Yes                    |
-| GIF upload          | Yes                | Yes                    |
-| Theme customization | Yes (Presets)      | Yes (Colors + Presets) |
-| 12hr time format    | Yes (simulated)    | No                     |
+| Feature             | Zoom65 V3          | Zoom TKL Dyna          | Zoom75 Tiga            |
+| ------------------- | ------------------ | ---------------------- | ---------------------- |
+| Screen size         | 110x110            | 320x172                | 320x172                |
+| Time sync           | Yes                | Yes                    | Yes                    |
+| Weather             | Yes                | Yes                    | Yes                    |
+| System info         | Yes (CPU/GPU/DL)   | Needs research         | Needs research         |
+| Screen control      | Yes                | Not fully implemented  | Not fully implemented  |
+| Image upload        | Yes                | Yes                    | Yes                    |
+| GIF upload          | Yes                | Yes                    | Yes                    |
+| Theme customization | Yes (Presets)      | Yes (Colors + Presets) | Yes (Colors + Presets) |
+| 12hr time format    | Yes (simulated)    | No                     | No                     |
 
 ## Third Party Services
 
