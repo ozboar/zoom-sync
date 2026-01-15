@@ -49,7 +49,9 @@ pub trait HasTime {
 /// Weather display capability
 pub trait HasWeather {
     /// Set weather display. WMO code is converted to board-specific icon internally.
-    fn set_weather(&mut self, wmo: u8, is_day: bool, current: u8, low: u8, high: u8) -> Result<()>;
+    /// Temperatures are in Celsius - each board converts to its native format.
+    fn set_weather(&mut self, wmo: u8, is_day: bool, current: i16, low: i16, high: i16)
+        -> Result<()>;
 }
 
 /// System info display capability (CPU temp, GPU temp, download speed)
