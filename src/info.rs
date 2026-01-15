@@ -3,7 +3,6 @@
 use std::error::Error;
 use std::sync::LazyLock;
 
-use bpaf::Bpaf;
 use either::Either;
 use nvml_wrapper::enum_wrappers::device::TemperatureSensor;
 use nvml_wrapper::{Device, Nvml};
@@ -54,23 +53,6 @@ impl GpuMode {
             GpuMode::Manual(v) => Either::Right(*v),
         }
     }
-}
-
-/// System info options:
-#[derive(Clone, Debug, Bpaf)]
-pub enum SystemArgs {
-    /// Disable updating system info completely
-    #[bpaf(long("no-system"))]
-    Disabled,
-    Enabled {
-        #[bpaf(external)]
-        cpu_mode: CpuMode,
-        #[bpaf(external)]
-        gpu_mode: GpuMode,
-        /// Manually set download speed
-        #[bpaf(short, long)]
-        download: Option<f32>,
-    },
 }
 
 /// Helper struct to track gpu temperature

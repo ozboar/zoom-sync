@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use bpaf::{Bpaf, Parser};
+use bpaf::Bpaf;
 use zoom_sync_core::Board;
 
 /// Screen position ID (string-based for board independence)
@@ -29,25 +29,6 @@ pub enum ScreenArgs {
     Down,
     /// Switch the screen offset
     Switch,
-    #[cfg(target_os = "linux")]
-    /// Reactive image/gif mode
-    #[bpaf(skip)]
-    Reactive,
-}
-
-pub fn screen_args_with_reactive() -> impl Parser<ScreenArgs> {
-    #[cfg(not(target_os = "linux"))]
-    {
-        screen_args()
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        let reactive = bpaf::long("reactive")
-            .help("Enable reactive mode, playing gif when typing and image when resting. Requires root permission for reading keypresses via evdev")
-            .req_flag(ScreenArgs::Reactive);
-        bpaf::construct!([reactive, screen_args()]).group_help("Screen options:")
-    }
 }
 
 pub fn apply_screen(args: &ScreenArgs, board: &mut dyn Board) -> Result<(), Box<dyn Error>> {
@@ -74,8 +55,6 @@ pub fn apply_screen(args: &ScreenArgs, board: &mut dyn Board) -> Result<(), Box<
         ScreenArgs::Up => screen.screen_up()?,
         ScreenArgs::Down => screen.screen_down()?,
         ScreenArgs::Switch => screen.screen_switch()?,
-        #[cfg(target_os = "linux")]
-        ScreenArgs::Reactive => return Err("cannot apply reactive gif natively".into()),
     };
     Ok(())
 }

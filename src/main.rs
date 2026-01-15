@@ -3,23 +3,18 @@ use std::fmt::{Debug, Display};
 use std::io::{stdout, Seek, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::time::Duration;
 
 use bpaf::{Bpaf, Parser};
-use chrono::{DurationRound, TimeDelta};
-use either::Either;
-use futures::future::OptionFuture;
 use image::codecs::gif::GifDecoder;
 use image::codecs::png::PngDecoder;
 use image::codecs::webp::WebPDecoder;
 use image::AnimationDecoder;
-use tokio_stream::StreamExt;
 use zoom_sync_core::Board;
 
 use crate::detection::{board_kind, BoardKind};
-use crate::info::{apply_system, cpu_mode, gpu_mode, system_args, CpuMode, GpuMode, SystemArgs};
+use crate::info::{apply_system, cpu_mode, gpu_mode, CpuMode, GpuMode};
 use crate::media::{encode_gif, encode_image};
-use crate::screen::{apply_screen, screen_args, screen_args_with_reactive, ScreenArgs};
+use crate::screen::{apply_screen, screen_args, ScreenArgs};
 use crate::weather::{apply_weather, weather_args, WeatherArgs};
 
 mod config;
@@ -41,31 +36,6 @@ No effect on any manually provided data.",
         )
         .switch()
 }
-
-#[derive(Debug, Clone, Bpaf)]
-struct RefreshArgs {
-    /// Interval in seconds to refresh system data
-    #[bpaf(short('S'), long, fallback(Duration::from_secs(10).into()), display_fallback)]
-    refresh_system: humantime::Duration,
-    /// Interval in seconds to refresh weather data
-    #[bpaf(short('W'), long, fallback(Duration::from_secs(60 * 60).into()), display_fallback)]
-    refresh_weather: humantime::Duration,
-    /// Retry interval for reconnecting to keyboard
-    #[bpaf(short('R'), long, fallback(Duration::from_secs(5).into()), display_fallback)]
-    retry: humantime::Duration,
-    /// Enable simulating 12hr time
-    #[bpaf(long("12hr"), fallback(false), display_fallback)]
-    _12hr: bool,
-    #[bpaf(external)]
-    farenheit: bool,
-    #[bpaf(external(screen_args_with_reactive), optional)]
-    screen_args: Option<ScreenArgs>,
-    #[bpaf(external)]
-    weather_args: WeatherArgs,
-    #[bpaf(external)]
-    system_args: SystemArgs,
-}
-
 
 #[derive(Clone, Debug, Bpaf)]
 enum SetCommand {
@@ -172,20 +142,30 @@ struct Cli {
     command: Command,
 }
 
-#[derive(Clone, Debug, Bpaf)]
+#[derive(Clone, Debug)]
 enum Command {
-    /// Update the keyboard periodically in a loop, reconnecting on errors.
-    Run(#[bpaf(external(refresh_args))] RefreshArgs),
+    /// Run with a system tray menu for GUI control (default).
+    Tray,
     /// Set specific options on the keyboard.
     /// Must not be used while zoom-sync is already running.
-    #[bpaf(command, fallback_to_usage)]
-    Set {
-        #[bpaf(external)]
-        set_command: SetCommand,
-    },
-    /// Run with a system tray menu for GUI control.
-    #[bpaf(command)]
-    Tray,
+    Set { set_command: SetCommand },
+}
+
+fn command() -> impl Parser<Command> {
+    let tray = bpaf::pure(Command::Tray)
+        .to_options()
+        .descr("Run with a system tray menu for GUI control")
+        .command("tray")
+        .help("Run with a system tray menu for GUI control (default)");
+
+    let set = set_command()
+        .map(|set_command| Command::Set { set_command })
+        .to_options()
+        .descr("Set specific options on the keyboard")
+        .command("set")
+        .help("Set specific options on the keyboard");
+
+    bpaf::construct!([tray, set]).fallback(Command::Tray)
 }
 
 pub fn apply_time(board: &mut dyn Board, _12hr: bool) -> Result<(), Box<dyn Error>> {
@@ -198,164 +178,12 @@ pub fn apply_time(board: &mut dyn Board, _12hr: bool) -> Result<(), Box<dyn Erro
     Ok(())
 }
 
-async fn refresh(board_kind: BoardKind, mut args: RefreshArgs) -> Result<(), Box<dyn Error>> {
-    let mut cpu = match &args.system_args {
-        SystemArgs::Disabled => None,
-        SystemArgs::Enabled { cpu_mode, .. } => Some(cpu_mode.either()),
-    };
-    let gpu = match &args.system_args {
-        SystemArgs::Disabled => None,
-        SystemArgs::Enabled { gpu_mode, .. } => Some(gpu_mode.either()),
-    };
-
-    loop {
-        if let Err(e) = run(board_kind, &mut args, &mut cpu, &gpu).await {
-            eprintln!("error: {e}\nreconnecting in {} seconds...", args.retry);
-            tokio::time::sleep(args.retry.into()).await;
-        }
-    }
-}
-
-async fn run(
-    board_kind: BoardKind,
-    args: &mut RefreshArgs,
-    cpu: &mut Option<Either<info::CpuTemp, u8>>,
-    gpu: &Option<Either<info::GpuTemp, u8>>,
-) -> Result<(), Box<dyn Error>> {
-    let mut board = board_kind.as_board()?;
-    println!("connected to {}", board.info().name);
-
-    if let Some(ref screen_args) = args.screen_args {
-        #[cfg(not(target_os = "linux"))]
-        {
-            apply_screen(screen_args, board.as_mut())?;
-            println!("set screen");
-        }
-        #[cfg(target_os = "linux")]
-        if *screen_args != ScreenArgs::Reactive {
-            apply_screen(screen_args, board.as_mut())?;
-            println!("set screen");
-        }
-    }
-    #[cfg(not(target_os = "linux"))]
-    let mut reactive_stream: Option<
-        Box<
-            dyn tokio_stream::Stream<Item = Result<Result<(), std::io::Error>, Box<dyn Error>>>
-                + Unpin,
-        >,
-    > = None;
-    #[cfg(target_os = "linux")]
-    let mut reactive_stream = args.screen_args.clone().and_then(|screen_args| match screen_args {
-        #[cfg(target_os = "linux")]
-        ScreenArgs::Reactive => {
-            println!("initializing reactive mode");
-            if let Some(screen) = board.as_screen() {
-                // Find and set to image position
-                let _ = screen.set_screen("image");
-            }
-            let stream = evdev::enumerate().find_map(|(_, device)| {
-                device
-                    .name()
-                    .unwrap()
-                    .contains(board.info().name)
-                    .then_some(
-                        device
-                            .into_event_stream()
-                            .map(|s| Box::pin(s.timeout(Duration::from_millis(500))))
-                            .ok(),
-                    )
-                    .flatten()
-            });
-            if stream.is_none() {
-                eprintln!("warning: couldn't find/access ev device");
-            }
-            stream
-        },
-        _ => None,
-    });
-    let mut is_reactive_running = false;
-
-    // Sync time immediately, and if 12hr time is enabled, resync every next hour
-    apply_time(board.as_mut(), args._12hr)?;
-    let mut time_interval = args._12hr.then_some({
-        let now = chrono::Local::now();
-
-        let delay = now
-            .duration_trunc(TimeDelta::try_minutes(60).unwrap())
-            .unwrap()
-            .timestamp_millis()
-            + 100
-            - now.timestamp_millis();
-
-        tokio::time::interval_at(
-            tokio::time::Instant::now() + Duration::from_millis(delay as u64),
-            Duration::from_secs(60 * 60),
-        )
-    });
-    let mut weather_interval = tokio::time::interval(args.refresh_weather.into());
-    let mut system_interval = tokio::time::interval(args.refresh_system.into());
-
-    loop {
-        tokio::select! {
-            Some(_) = OptionFuture::from(time_interval.as_mut().map(|i| i.tick())) => {
-                apply_time(board.as_mut(), args._12hr)?;
-            },
-            _ = weather_interval.tick() => {
-                apply_weather(board.as_mut(), &mut args.weather_args, args.farenheit).await?
-            },
-            _ = system_interval.tick() => {
-                if let SystemArgs::Enabled { download, .. } = args.system_args {
-                    apply_system(
-                        board.as_mut(),
-                        args.farenheit,
-                        cpu.as_mut().unwrap(),
-                        gpu.as_ref().unwrap(),
-                        download,
-                    )?;
-                }
-            },
-            Some(Some(res)) = {
-                OptionFuture::from(reactive_stream.as_mut().map(|s| s.next()))
-            } => {
-                match res {
-                    Ok(Err(e)) => return Err(Box::new(e)),
-                    // keypress, play gif if not already running
-                    #[cfg(target_os = "linux")]
-                    Ok(Ok(ev)) if !is_reactive_running => {
-                        if matches!(ev.kind(), evdev::InputEventKind::Key(_)) {
-                            is_reactive_running = true;
-                            if let Some(screen) = board.as_screen() {
-                                screen.screen_switch()?;
-                            }
-                        }
-                    },
-                    // timeout, reset back to image
-                    Err(_) if is_reactive_running => {
-                        is_reactive_running = false;
-                        if let Some(screen) = board.as_screen() {
-                            screen.reset_screen()?;
-                            screen.screen_switch()?;
-                            screen.screen_switch()?;
-                        }
-                    },
-                    _ => {}
-                }
-            }
-        }
-    }
-}
-
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = cli().run();
     match cli.command {
         Command::Tray => {
             let _lock = lock::Lock::acquire()?;
             tray::run_tray_app()
-        }
-        Command::Run(args) => {
-            let _lock = lock::Lock::acquire()?;
-            let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(refresh(cli.board, args))
         }
         Command::Set { set_command } => {
             let rt = tokio::runtime::Runtime::new()?;
