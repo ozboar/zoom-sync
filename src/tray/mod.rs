@@ -4,8 +4,26 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::io::{stdout, Seek, Write};
 use std::mem::Discriminant;
-use std::path::PathBuf;
 use std::time::Duration;
+
+/// Errors that can occur during image/gif processing
+#[derive(Debug, thiserror::Error)]
+pub enum ImageProcessingError {
+    #[error("failed to open file: {0}")]
+    OpenFile(#[from] std::io::Error),
+    #[error("failed to decode image: {0}")]
+    DecodeImage(#[from] image::ImageError),
+    #[error("failed to encode image")]
+    EncodeImage,
+    #[error("failed to encode gif")]
+    EncodeGif,
+    #[error("png is not animated")]
+    NotAnimatedPng,
+    #[error("webp is not animated")]
+    NotAnimatedWebp,
+    #[error("unsupported animation format")]
+    UnsupportedFormat,
+}
 
 use chrono::DurationRound;
 use either::Either;
@@ -102,13 +120,7 @@ async fn async_tray_app() -> Result<(), Box<dyn Error>> {
     // Reactive mode (Linux only)
     #[cfg(target_os = "linux")]
     let mut reactive_stream: Option<
-        std::pin::Pin<
-            Box<
-                tokio_stream::Timeout<
-                    evdev::EventStream,
-                >,
-            >,
-        >,
+        std::pin::Pin<Box<tokio_stream::Timeout<evdev::EventStream>>>,
     > = None;
     #[cfg(not(target_os = "linux"))]
     let mut reactive_stream: Option<futures::stream::Empty<()>> = None;
@@ -132,30 +144,66 @@ async fn async_tray_app() -> Result<(), Box<dyn Error>> {
                             let _ = cmd_tx.send(cmd);
                         }
                         menu::MenuAction::PickImage => {
-                            let tx = cmd_tx.clone();
-                            tokio::spawn(async move {
-                                if let Some(handle) = rfd::AsyncFileDialog::new()
-                                    .add_filter("Images", &["png", "jpg", "jpeg", "bmp", "webp"])
-                                    .set_title("Select Image")
-                                    .pick_file()
-                                    .await
-                                {
-                                    let _ = tx.send(TrayCommand::UploadImage(handle.path().to_path_buf()));
-                                }
-                            });
+                            // Get encoding params before spawning
+                            let screen_size = board.as_ref().and_then(|b| b.as_screen_size());
+                            if let Some((width, height)) = screen_size {
+                                let tx = cmd_tx.clone();
+                                let bg = parse_hex_color(&state.config.media.background_color).unwrap_or([0, 0, 0]);
+                                let nearest = state.config.media.use_nearest_neighbor;
+                                tokio::spawn(async move {
+                                    if let Some(handle) = rfd::AsyncFileDialog::new()
+                                        .add_filter("Images", &["png", "jpg", "jpeg", "bmp", "webp"])
+                                        .set_title("Select Image")
+                                        .pick_file()
+                                        .await
+                                    {
+                                        let path = handle.path().to_path_buf();
+                                        // Encode in blocking thread
+                                        let result = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, ImageProcessingError> {
+                                            let image = image::open(&path)?;
+                                            encode_image(image, bg, nearest, width, height)
+                                                .ok_or(ImageProcessingError::EncodeImage)
+                                        }).await;
+                                        match result {
+                                            Ok(Ok(data)) => { let _ = tx.send(TrayCommand::UploadImage(data)); }
+                                            Ok(Err(e)) => eprintln!("{e}"),
+                                            Err(e) => eprintln!("image encoding task panicked: {e}"),
+                                        }
+                                    }
+                                });
+                            } else {
+                                eprintln!("no board connected for image upload");
+                            }
                         }
                         menu::MenuAction::PickGif => {
-                            let tx = cmd_tx.clone();
-                            tokio::spawn(async move {
-                                if let Some(handle) = rfd::AsyncFileDialog::new()
-                                    .add_filter("Animations", &["gif", "webp", "png", "apng"])
-                                    .set_title("Select Animation")
-                                    .pick_file()
-                                    .await
-                                {
-                                    let _ = tx.send(TrayCommand::UploadGif(handle.path().to_path_buf()));
-                                }
-                            });
+                            // Get encoding params before spawning
+                            let screen_size = board.as_ref().and_then(|b| b.as_screen_size());
+                            if let Some((width, height)) = screen_size {
+                                let tx = cmd_tx.clone();
+                                let bg = parse_hex_color(&state.config.media.background_color).unwrap_or([0, 0, 0]);
+                                let nearest = state.config.media.use_nearest_neighbor;
+                                tokio::spawn(async move {
+                                    if let Some(handle) = rfd::AsyncFileDialog::new()
+                                        .add_filter("Animations", &["gif", "webp", "png", "apng"])
+                                        .set_title("Select Animation")
+                                        .pick_file()
+                                        .await
+                                    {
+                                        let path = handle.path().to_path_buf();
+                                        // Decode and encode in blocking thread
+                                        let result = tokio::task::spawn_blocking(move || {
+                                            decode_and_encode_gif(&path, bg, nearest, width, height)
+                                        }).await;
+                                        match result {
+                                            Ok(Ok(data)) => { let _ = tx.send(TrayCommand::UploadGif(data)); }
+                                            Ok(Err(e)) => eprintln!("{e}"),
+                                            Err(e) => eprintln!("gif encoding task panicked: {e}"),
+                                        }
+                                    }
+                                });
+                            } else {
+                                eprintln!("no board connected for gif upload");
+                            }
                         }
                         menu::MenuAction::None => {}
                     }
@@ -363,12 +411,12 @@ async fn handle_command(
                             state.current_screen = Some(id.to_string());
                             menu_items.update_from_state(state);
                             println!("set screen to {id}");
-                        }
+                        },
                         Err(e) => eprintln!("failed to set screen: {e}"),
                     }
                 }
             }
-        }
+        },
         TrayCommand::ScreenUp => {
             if let Some(ref mut b) = board {
                 if let Some(screen) = b.as_screen() {
@@ -379,7 +427,7 @@ async fn handle_command(
                     }
                 }
             }
-        }
+        },
         TrayCommand::ScreenDown => {
             if let Some(ref mut b) = board {
                 if let Some(screen) = b.as_screen() {
@@ -390,7 +438,7 @@ async fn handle_command(
                     }
                 }
             }
-        }
+        },
         TrayCommand::ScreenSwitch => {
             if let Some(ref mut b) = board {
                 if let Some(screen) = b.as_screen() {
@@ -401,7 +449,7 @@ async fn handle_command(
                     }
                 }
             }
-        }
+        },
 
         TrayCommand::ToggleWeather => {
             state.config.weather.enabled = !state.config.weather.enabled;
@@ -409,17 +457,21 @@ async fn handle_command(
             let _ = state.config.save();
             menu_items.update_from_state(state);
             println!("weather: {}", state.config.weather.enabled);
-        }
+        },
         TrayCommand::ToggleSystemInfo => {
             state.config.system_info.enabled = !state.config.system_info.enabled;
             if state.config.system_info.enabled && board.is_some() {
-                *cpu = Some(Either::Left(CpuTemp::new(&state.config.system_info.cpu_source)));
-                *gpu = Some(Either::Left(GpuTemp::new(state.config.system_info.gpu_device)));
+                *cpu = Some(Either::Left(CpuTemp::new(
+                    &state.config.system_info.cpu_source,
+                )));
+                *gpu = Some(Either::Left(GpuTemp::new(
+                    state.config.system_info.gpu_device,
+                )));
             }
             let _ = state.config.save();
             menu_items.update_from_state(state);
             println!("system info: {}", state.config.system_info.enabled);
-        }
+        },
         TrayCommand::Toggle12HrTime => {
             state.config.general.use_12hr_time = !state.config.general.use_12hr_time;
             if let Some(ref mut b) = board {
@@ -428,7 +480,7 @@ async fn handle_command(
             let _ = state.config.save();
             menu_items.update_from_state(state);
             println!("12hr time: {}", state.config.general.use_12hr_time);
-        }
+        },
         TrayCommand::ToggleFahrenheit => {
             state.config.general.fahrenheit = !state.config.general.fahrenheit;
             let _ = state.config.save();
@@ -438,40 +490,68 @@ async fn handle_command(
             // Immediately update displays with new temperature unit
             if let Some(ref mut b) = board {
                 if state.config.weather.enabled {
-                    if let Err(e) = apply_weather(b.as_mut(), weather_args, state.config.general.fahrenheit).await {
+                    if let Err(e) =
+                        apply_weather(b.as_mut(), weather_args, state.config.general.fahrenheit)
+                            .await
+                    {
                         eprintln!("weather update failed: {e}");
                     }
                 }
                 if state.config.system_info.enabled {
                     if let (Some(ref mut c), Some(ref g)) = (cpu, gpu) {
-                        if let Err(e) = apply_system(b.as_mut(), state.config.general.fahrenheit, c, g, None) {
+                        if let Err(e) =
+                            apply_system(b.as_mut(), state.config.general.fahrenheit, c, g, None)
+                        {
                             eprintln!("system update failed: {e}");
                         }
                     }
                 }
             }
-        }
+        },
         TrayCommand::ToggleReactiveMode => {
             state.config.general.reactive_mode = !state.config.general.reactive_mode;
             let _ = state.config.save();
             menu_items.update_from_state(state);
-            println!("reactive mode: {} (restart required)", state.config.general.reactive_mode);
-        }
+            println!(
+                "reactive mode: {} (restart required)",
+                state.config.general.reactive_mode
+            );
+        },
 
-        TrayCommand::UploadImage(path) => {
+        TrayCommand::UploadImage(encoded) => {
             if let Some(ref mut b) = board {
-                if let Err(e) = upload_image(b.as_mut(), &path, &state.config) {
-                    eprintln!("failed to upload image: {e}");
+                if let Some(image_handler) = b.as_image() {
+                    let len = encoded.len();
+                    let total = len / 24;
+                    let progress_width = total.to_string().len();
+                    if let Err(e) = image_handler.upload_image(&encoded, &|i| {
+                        print!("\ruploading {len} bytes ({i:progress_width$}/{total}) ... ");
+                        stdout().flush().unwrap();
+                    }) {
+                        eprintln!("failed to upload image: {e}");
+                    } else {
+                        println!("done");
+                    }
                 }
             }
-        }
-        TrayCommand::UploadGif(path) => {
+        },
+        TrayCommand::UploadGif(encoded) => {
             if let Some(ref mut b) = board {
-                if let Err(e) = upload_gif(b.as_mut(), &path, &state.config) {
-                    eprintln!("failed to upload gif: {e}");
+                if let Some(gif_handler) = b.as_gif() {
+                    let len = encoded.len();
+                    let total = len / 24;
+                    let progress_width = total.to_string().len();
+                    if let Err(e) = gif_handler.upload_gif(&encoded, &|i| {
+                        print!("\ruploading {len} bytes ({i:progress_width$}/{total}) ... ");
+                        stdout().flush().unwrap();
+                    }) {
+                        eprintln!("failed to upload gif: {e}");
+                    } else {
+                        println!("done");
+                    }
                 }
             }
-        }
+        },
         TrayCommand::ClearImage => {
             if let Some(ref mut b) = board {
                 if let Some(image) = b.as_image() {
@@ -481,7 +561,7 @@ async fn handle_command(
                     }
                 }
             }
-        }
+        },
         TrayCommand::ClearGif => {
             if let Some(ref mut b) = board {
                 if let Some(gif) = b.as_gif() {
@@ -491,7 +571,7 @@ async fn handle_command(
                     }
                 }
             }
-        }
+        },
         TrayCommand::ClearAllMedia => {
             if let Some(ref mut b) = board {
                 if let Some(image) = b.as_image() {
@@ -502,7 +582,7 @@ async fn handle_command(
                 }
                 println!("cleared all media");
             }
-        }
+        },
 
         TrayCommand::ReloadConfig => {
             if let Err(e) = state.config.reload() {
@@ -512,7 +592,7 @@ async fn handle_command(
                 *weather_args = build_weather_args(&state.config);
             }
             menu_items.update_from_state(state);
-        }
+        },
     }
 
     CommandResult::Continue
@@ -570,88 +650,44 @@ fn load_icon() -> Result<tray_icon::Icon, Box<dyn Error>> {
     Ok(icon)
 }
 
-fn upload_image(
-    board: &mut dyn Board,
-    path: &PathBuf,
-    config: &Config,
-) -> Result<(), Box<dyn Error>> {
-    let (width, height) = board
-        .as_screen_size()
-        .ok_or("board does not support screen size")?;
-    let image_handler = board
-        .as_image()
-        .ok_or("board does not support images")?;
-
-    let bg = parse_hex_color(&config.media.background_color).unwrap_or([0, 0, 0]);
-    let image = image::open(path)?;
-    let encoded = encode_image(image, bg, config.media.use_nearest_neighbor, width, height)
-        .ok_or("failed to encode image")?;
-
-    let len = encoded.len();
-    let total = len / 24;
-    let progress_width = total.to_string().len();
-    image_handler.upload_image(&encoded, &|i| {
-        print!("\ruploading {len} bytes ({i:progress_width$}/{total}) ... ");
-        stdout().flush().unwrap();
-    })?;
-    println!("done");
-    Ok(())
-}
-
-fn upload_gif(
-    board: &mut dyn Board,
-    path: &PathBuf,
-    config: &Config,
-) -> Result<(), Box<dyn Error>> {
-    let (width, height) = board
-        .as_screen_size()
-        .ok_or("board does not support screen size")?;
-    let gif_handler = board.as_gif().ok_or("board does not support gifs")?;
-
-    let bg = parse_hex_color(&config.media.background_color).unwrap_or([0, 0, 0]);
-
-    print!("decoding animation ... ");
-    stdout().flush().unwrap();
-
+/// Decode and encode a gif/animation file (runs in blocking thread)
+fn decode_and_encode_gif(
+    path: &std::path::Path,
+    bg: [u8; 3],
+    nearest: bool,
+    width: u32,
+    height: u32,
+) -> Result<Vec<u8>, ImageProcessingError> {
     let decoder = image::ImageReader::open(path)?.with_guessed_format()?;
+
     let frames = match decoder.format() {
         Some(image::ImageFormat::Gif) => {
             let mut reader = decoder.into_inner();
             reader.seek(std::io::SeekFrom::Start(0))?;
-            Some(GifDecoder::new(reader)?.into_frames())
-        }
+            GifDecoder::new(reader)?.into_frames()
+        },
         Some(image::ImageFormat::Png) => {
             let mut reader = decoder.into_inner();
             reader.seek(std::io::SeekFrom::Start(0))?;
-            let decoder = PngDecoder::new(reader)?;
-            decoder
-                .is_apng()?
-                .then_some(decoder.apng().unwrap().into_frames())
-        }
+            let png = PngDecoder::new(reader)?;
+            if !png.is_apng()? {
+                return Err(ImageProcessingError::NotAnimatedPng);
+            }
+            png.apng()?.into_frames()
+        },
         Some(image::ImageFormat::WebP) => {
             let mut reader = decoder.into_inner();
             reader.seek(std::io::SeekFrom::Start(0))?;
-            let decoder = WebPDecoder::new(reader)?;
-            decoder.has_animation().then_some(decoder.into_frames())
-        }
-        _ => None,
-    }
-    .ok_or("failed to decode animation")?;
+            let webp = WebPDecoder::new(reader)?;
+            if !webp.has_animation() {
+                return Err(ImageProcessingError::NotAnimatedWebp);
+            }
+            webp.into_frames()
+        },
+        _ => return Err(ImageProcessingError::UnsupportedFormat),
+    };
 
-    println!("done");
-
-    let encoded = encode_gif(frames, bg, config.media.use_nearest_neighbor, width, height)
-        .ok_or("failed to encode gif")?;
-
-    let len = encoded.len();
-    let total = len / 24;
-    let progress_width = total.to_string().len();
-    gif_handler.upload_gif(&encoded, &|i| {
-        print!("\ruploading {len} bytes ({i:progress_width$}/{total}) ... ");
-        stdout().flush().unwrap();
-    })?;
-    println!("done");
-    Ok(())
+    encode_gif(frames, bg, nearest, width, height).ok_or(ImageProcessingError::EncodeGif)
 }
 
 fn parse_hex_color(hex: &str) -> Option<[u8; 3]> {
