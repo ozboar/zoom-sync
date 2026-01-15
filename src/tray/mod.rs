@@ -48,7 +48,7 @@ mod menu;
 pub use commands::{ConnectionStatus, TrayCommand, TrayState};
 
 /// Icon bytes embedded at compile time
-const ICON_BYTES: &[u8] = include_bytes!("../../assets/icon.png");
+const MELETRIX_ICON_32: &[u8] = include_bytes!("../../assets/meletrix_icon_32.png");
 
 /// Run the tray application
 pub fn run_tray_app() -> Result<(), Box<dyn Error>> {
@@ -680,7 +680,7 @@ fn create_hourly_interval() -> tokio::time::Interval {
 }
 
 fn load_icon() -> Result<tray_icon::Icon, Box<dyn Error>> {
-    let image = image::load_from_memory(ICON_BYTES)?;
+    let image = image::load_from_memory(MELETRIX_ICON_32)?;
     let rgba = image.to_rgba8();
     let (width, height) = rgba.dimensions();
     let icon = tray_icon::Icon::from_rgba(rgba.into_raw(), width, height)?;
