@@ -3,14 +3,16 @@
 use std::error::Error;
 use std::str::FromStr;
 
+use bpaf::Bpaf;
 use hidapi::HidApi;
 use zoom_sync_core::{Board, BoardInfo};
 use zoom65v3::{Zoom65v3, INFO as ZOOM65V3_INFO};
 
 /// Supported board types
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Bpaf)]
+#[bpaf(fallback(BoardKind::Auto), group_help("Board selection:"))]
 pub enum BoardKind {
-    /// Auto-detect connected board
+    /// Auto-detect connected board (default)
     #[default]
     Auto,
     /// Zoom65 V3
