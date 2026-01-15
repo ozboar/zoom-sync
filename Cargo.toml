@@ -48,6 +48,9 @@ tray-icon = { version = "0.17", default-features = false }
 muda = { version = "0.14", default-features = false }
 rfd = "0.17"
 
+# errors
+thiserror = "2"
+
 # config persistence
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"

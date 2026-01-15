@@ -106,7 +106,13 @@ pub async fn get_weather(
         temp = temp * 9. / 5. + 32.;
     }
 
-    Ok(WeatherData { wmo, is_day, current: temp, min, max })
+    Ok(WeatherData {
+        wmo,
+        is_day,
+        current: temp,
+        min,
+        max,
+    })
 }
 
 pub async fn apply_weather(
@@ -114,9 +120,7 @@ pub async fn apply_weather(
     args: &mut WeatherArgs,
     farenheit: bool,
 ) -> Result<(), Box<dyn Error>> {
-    let weather = board
-        .as_weather()
-        .ok_or("board does not support weather")?;
+    let weather = board.as_weather().ok_or("board does not support weather")?;
 
     match args {
         WeatherArgs::Disabled => println!("skipping weather"),
@@ -140,7 +144,13 @@ pub async fn apply_weather(
                 match get_weather(lat, long, farenheit).await {
                     Ok(data) => {
                         weather
-                            .set_weather(data.wmo, data.is_day, data.current as u8, data.min as u8, data.max as u8)
+                            .set_weather(
+                                data.wmo,
+                                data.is_day,
+                                data.current as u8,
+                                data.min as u8,
+                                data.max as u8,
+                            )
                             .map_err(|e| format!("failed to set weather: {e}"))?;
                         println!(
                             "updated weather {{ wmo: {}, is_day: {}, current: {}, min: {}, max: {} }}",

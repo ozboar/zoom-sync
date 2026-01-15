@@ -73,8 +73,9 @@ pub fn encode_gif(
         .par_iter()
         .map(|frame| {
             let resized = resize_to_fill(frame.buffer(), gif_width, gif_height, nearest);
-            let mut buf =
-                image::ImageBuffer::from_fn(gif_width, gif_height, |_, _| [br, bg, bb, 0xff].into());
+            let mut buf = image::ImageBuffer::from_fn(gif_width, gif_height, |_, _| {
+                [br, bg, bb, 0xff].into()
+            });
             imageops::overlay(&mut buf, &resized, 0, 0);
 
             let mut frame =

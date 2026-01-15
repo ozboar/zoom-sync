@@ -94,10 +94,7 @@ impl MenuItems {
         ];
 
         // Determine current screen string
-        let current = state
-            .current_screen
-            .as_deref()
-            .unwrap_or_default();
+        let current = state.current_screen.as_deref().unwrap_or_default();
 
         for (item, id) in screen_items {
             item.set_checked(current == id);
@@ -135,12 +132,27 @@ pub fn build_menu(state: &TrayState) -> (Menu, MenuItems) {
     // Screen position submenu
     let screen_submenu = Submenu::new("Screen Position", true);
 
-    let screen_cpu =
-        CheckMenuItem::with_id(ids::SCREEN_CPU, "CPU Temp", true, false, None::<Accelerator>);
-    let screen_gpu =
-        CheckMenuItem::with_id(ids::SCREEN_GPU, "GPU Temp", true, false, None::<Accelerator>);
-    let screen_download =
-        CheckMenuItem::with_id(ids::SCREEN_DOWNLOAD, "Download", true, false, None::<Accelerator>);
+    let screen_cpu = CheckMenuItem::with_id(
+        ids::SCREEN_CPU,
+        "CPU Temp",
+        true,
+        false,
+        None::<Accelerator>,
+    );
+    let screen_gpu = CheckMenuItem::with_id(
+        ids::SCREEN_GPU,
+        "GPU Temp",
+        true,
+        false,
+        None::<Accelerator>,
+    );
+    let screen_download = CheckMenuItem::with_id(
+        ids::SCREEN_DOWNLOAD,
+        "Download",
+        true,
+        false,
+        None::<Accelerator>,
+    );
     screen_submenu.append(&screen_cpu).unwrap();
     screen_submenu.append(&screen_gpu).unwrap();
     screen_submenu.append(&screen_download).unwrap();
@@ -150,22 +162,47 @@ pub fn build_menu(state: &TrayState) -> (Menu, MenuItems) {
 
     let screen_time =
         CheckMenuItem::with_id(ids::SCREEN_TIME, "Time", true, false, None::<Accelerator>);
-    let screen_weather =
-        CheckMenuItem::with_id(ids::SCREEN_WEATHER, "Weather", true, false, None::<Accelerator>);
+    let screen_weather = CheckMenuItem::with_id(
+        ids::SCREEN_WEATHER,
+        "Weather",
+        true,
+        false,
+        None::<Accelerator>,
+    );
     screen_submenu.append(&screen_time).unwrap();
     screen_submenu.append(&screen_weather).unwrap();
     screen_submenu
         .append(&PredefinedMenuItem::separator())
         .unwrap();
 
-    let screen_meletrix =
-        CheckMenuItem::with_id(ids::SCREEN_MELETRIX, "Meletrix Logo", true, false, None::<Accelerator>);
-    let screen_zoom65 =
-        CheckMenuItem::with_id(ids::SCREEN_ZOOM65, "Zoom65 Logo", true, false, None::<Accelerator>);
-    let screen_image =
-        CheckMenuItem::with_id(ids::SCREEN_IMAGE, "Custom Image", true, false, None::<Accelerator>);
-    let screen_gif =
-        CheckMenuItem::with_id(ids::SCREEN_GIF, "Custom GIF", true, false, None::<Accelerator>);
+    let screen_meletrix = CheckMenuItem::with_id(
+        ids::SCREEN_MELETRIX,
+        "Meletrix Logo",
+        true,
+        false,
+        None::<Accelerator>,
+    );
+    let screen_zoom65 = CheckMenuItem::with_id(
+        ids::SCREEN_ZOOM65,
+        "Zoom65 Logo",
+        true,
+        false,
+        None::<Accelerator>,
+    );
+    let screen_image = CheckMenuItem::with_id(
+        ids::SCREEN_IMAGE,
+        "Custom Image",
+        true,
+        false,
+        None::<Accelerator>,
+    );
+    let screen_gif = CheckMenuItem::with_id(
+        ids::SCREEN_GIF,
+        "Custom GIF",
+        true,
+        false,
+        None::<Accelerator>,
+    );
     screen_submenu.append(&screen_meletrix).unwrap();
     screen_submenu.append(&screen_zoom65).unwrap();
     screen_submenu.append(&screen_image).unwrap();
@@ -174,8 +211,13 @@ pub fn build_menu(state: &TrayState) -> (Menu, MenuItems) {
         .append(&PredefinedMenuItem::separator())
         .unwrap();
 
-    let screen_battery =
-        CheckMenuItem::with_id(ids::SCREEN_BATTERY, "Battery", true, false, None::<Accelerator>);
+    let screen_battery = CheckMenuItem::with_id(
+        ids::SCREEN_BATTERY,
+        "Battery",
+        true,
+        false,
+        None::<Accelerator>,
+    );
     screen_submenu.append(&screen_battery).unwrap();
 
     menu.append(&screen_submenu).unwrap();
@@ -183,7 +225,12 @@ pub fn build_menu(state: &TrayState) -> (Menu, MenuItems) {
     // Screen navigation submenu
     let nav_submenu = Submenu::new("Screen Navigation", true);
     nav_submenu
-        .append(&MenuItem::with_id(ids::NAV_UP, "Up", true, None::<Accelerator>))
+        .append(&MenuItem::with_id(
+            ids::NAV_UP,
+            "Up",
+            true,
+            None::<Accelerator>,
+        ))
         .unwrap();
     nav_submenu
         .append(&MenuItem::with_id(
@@ -340,8 +387,13 @@ pub fn build_menu(state: &TrayState) -> (Menu, MenuItems) {
         }),
     ))
     .unwrap();
-    menu.append(&MenuItem::with_id(ids::QUIT, "Quit", true, None::<Accelerator>))
-        .unwrap();
+    menu.append(&MenuItem::with_id(
+        ids::QUIT,
+        "Quit",
+        true,
+        None::<Accelerator>,
+    ))
+    .unwrap();
 
     let items = MenuItems {
         status,
@@ -421,7 +473,7 @@ pub fn handle_menu_event(event: MenuEvent) -> MenuAction {
         ids::OPEN_CONFIG => {
             open_config_file();
             MenuAction::None
-        }
+        },
         ids::RELOAD_CONFIG => MenuAction::Command(TrayCommand::ReloadConfig),
 
         // Quit

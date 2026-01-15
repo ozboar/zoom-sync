@@ -17,7 +17,10 @@ impl Lock {
     /// Returns an error if another instance is already running.
     pub fn acquire() -> io::Result<Self> {
         let path = Self::path().ok_or_else(|| {
-            io::Error::new(io::ErrorKind::NotFound, "could not determine lock file path")
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "could not determine lock file path",
+            )
         })?;
 
         // Ensure parent directory exists

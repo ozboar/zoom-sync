@@ -35,7 +35,6 @@ pub enum ScreenGroup {
 /// Instance methods (`info`, `as_*`) are object-safe.
 /// Boards should provide a static `INFO` constant and `open()` method separately.
 pub trait Board: Send {
-
     // === Object-safe instance methods ===
 
     /// Get board info (instance method for object safety)

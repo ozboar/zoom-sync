@@ -39,17 +39,14 @@ pub fn apply_screen(args: &ScreenArgs, board: &mut dyn Board) -> Result<(), Box<
     match args {
         ScreenArgs::Screen(pos_id) => {
             let positions = screen.screen_positions();
-            let pos = positions
-                .iter()
-                .find(|p| p.id == pos_id.0)
-                .ok_or_else(|| {
-                    let valid: Vec<_> = positions.iter().map(|p| p.id).collect();
-                    format!(
-                        "invalid screen position '{}'. Valid: {}",
-                        pos_id.0,
-                        valid.join(", ")
-                    )
-                })?;
+            let pos = positions.iter().find(|p| p.id == pos_id.0).ok_or_else(|| {
+                let valid: Vec<_> = positions.iter().map(|p| p.id).collect();
+                format!(
+                    "invalid screen position '{}'. Valid: {}",
+                    pos_id.0,
+                    valid.join(", ")
+                )
+            })?;
             screen.set_screen(pos.id)?;
         },
         ScreenArgs::Up => screen.screen_up()?,

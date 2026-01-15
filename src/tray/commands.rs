@@ -1,7 +1,5 @@
 //! Command and state types for tray-daemon communication
 
-use std::path::PathBuf;
-
 use crate::config::Config;
 
 /// Commands sent from tray menu to the daemon
@@ -25,10 +23,10 @@ pub enum TrayCommand {
     ToggleFahrenheit,
     /// Toggle reactive mode (Linux only)
     ToggleReactiveMode,
-    /// Upload an image from path
-    UploadImage(PathBuf),
-    /// Upload a GIF from path
-    UploadGif(PathBuf),
+    /// Upload pre-encoded image data
+    UploadImage(Vec<u8>),
+    /// Upload pre-encoded GIF data
+    UploadGif(Vec<u8>),
     /// Clear uploaded image
     ClearImage,
     /// Clear uploaded GIF
@@ -61,11 +59,9 @@ impl ConnectionStatus {
 }
 
 /// State shared from daemon to tray for UI updates
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct TrayState {
     pub connection: ConnectionStatus,
     pub current_screen: Option<String>,
     pub config: Config,
 }
-

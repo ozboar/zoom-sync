@@ -19,7 +19,6 @@ pub struct Config {
     pub media: MediaConfig,
 }
 
-
 impl Config {
     /// Get the config file path for this platform
     pub fn path() -> Option<PathBuf> {

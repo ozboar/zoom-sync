@@ -184,7 +184,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Command::Tray => {
             let _lock = lock::Lock::acquire()?;
             tray::run_tray_app()
-        }
+        },
         Command::Set { set_command } => {
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(async {
@@ -313,7 +313,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     },
                 }
             })
-        }
+        },
     }
 }
 

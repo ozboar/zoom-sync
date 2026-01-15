@@ -4137,6 +4137,7 @@ dependencies = [
  "rgb565",
  "serde",
  "sysinfo",
+ "thiserror 2.0.3",
  "tokio",
  "tokio-stream",
  "toml",
