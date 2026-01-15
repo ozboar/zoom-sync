@@ -4,6 +4,7 @@ use muda::{
     accelerator::Accelerator, AboutMetadata, CheckMenuItem, Menu, MenuEvent, MenuItem,
     PredefinedMenuItem, Submenu,
 };
+use zoom_sync_core::Board;
 
 use super::commands::{TrayCommand, TrayState};
 
@@ -53,7 +54,16 @@ pub mod ids {
 
 /// Holds references to menu items that need dynamic updates
 pub struct MenuItems {
+    pub menu: Menu,
     pub status: MenuItem,
+    // Submenus (dynamically added/removed based on board features)
+    pub screen_submenu: Submenu,
+    pub nav_submenu: Submenu,
+    pub media_submenu: Submenu,
+    // Track which feature menus are currently shown
+    screen_menus_visible: std::cell::Cell<bool>,
+    media_menu_visible: std::cell::Cell<bool>,
+    // Screen position items
     pub screen_cpu: CheckMenuItem,
     pub screen_gpu: CheckMenuItem,
     pub screen_download: CheckMenuItem,
@@ -64,6 +74,7 @@ pub struct MenuItems {
     pub screen_image: CheckMenuItem,
     pub screen_gif: CheckMenuItem,
     pub screen_battery: CheckMenuItem,
+    // Settings toggles
     pub toggle_weather: CheckMenuItem,
     pub toggle_system: CheckMenuItem,
     pub toggle_12hr: CheckMenuItem,
@@ -73,11 +84,41 @@ pub struct MenuItems {
 }
 
 impl MenuItems {
-    /// Update menu state from TrayState
-    pub fn update_from_state(&self, state: &TrayState) {
-        // Update connection status
-        self.status
-            .set_text(format!("Status: {}", state.connection.as_str()));
+    /// Update menu state based on board features
+    pub fn update_from_state(&self, state: &TrayState, board: &mut Option<Box<dyn Board>>) {
+        // Update connection status and check features
+        let (status_text, has_screen, has_media) = match board.as_mut() {
+            Some(b) => {
+                let has_screen = b.as_screen().is_some();
+                let has_media = b.as_image().is_some() || b.as_gif().is_some();
+                (format!("{} Connected", b.info().name), has_screen, has_media)
+            }
+            None => ("Disconnected".to_string(), false, false),
+        };
+        self.status.set_text(status_text);
+
+        // Add/remove screen menus based on feature
+        let screen_visible = self.screen_menus_visible.get();
+        if has_screen && !screen_visible {
+            self.menu.insert(&self.screen_submenu, 2).unwrap();
+            self.menu.insert(&self.nav_submenu, 3).unwrap();
+            self.screen_menus_visible.set(true);
+        } else if !has_screen && screen_visible {
+            self.menu.remove(&self.screen_submenu).unwrap();
+            self.menu.remove(&self.nav_submenu).unwrap();
+            self.screen_menus_visible.set(false);
+        }
+
+        // Add/remove media menu based on feature
+        let media_visible = self.media_menu_visible.get();
+        let media_position = if self.screen_menus_visible.get() { 4 } else { 2 };
+        if has_media && !media_visible {
+            self.menu.insert(&self.media_submenu, media_position).unwrap();
+            self.media_menu_visible.set(true);
+        } else if !has_media && media_visible {
+            self.menu.remove(&self.media_submenu).unwrap();
+            self.media_menu_visible.set(false);
+        }
 
         // Update screen position radio buttons
         let screen_items = [
@@ -115,8 +156,8 @@ impl MenuItems {
     }
 }
 
-/// Build the tray menu and return the menu + items for updates
-pub fn build_menu(state: &TrayState) -> (Menu, MenuItems) {
+/// Build the tray menu and return items for updates (menu is inside MenuItems)
+pub fn build_menu(state: &TrayState) -> MenuItems {
     let menu = Menu::new();
 
     // Connection status (disabled, just for display)
@@ -220,7 +261,7 @@ pub fn build_menu(state: &TrayState) -> (Menu, MenuItems) {
     );
     screen_submenu.append(&screen_battery).unwrap();
 
-    menu.append(&screen_submenu).unwrap();
+    // Don't append screen_submenu yet - added dynamically when connected
 
     // Screen navigation submenu
     let nav_submenu = Submenu::new("Screen Navigation", true);
@@ -248,7 +289,8 @@ pub fn build_menu(state: &TrayState) -> (Menu, MenuItems) {
             None::<Accelerator>,
         ))
         .unwrap();
-    menu.append(&nav_submenu).unwrap();
+
+    // Don't append nav_submenu yet - added dynamically when connected
 
     // Settings submenu
     let settings_submenu = Submenu::new("Settings", true);
@@ -353,7 +395,8 @@ pub fn build_menu(state: &TrayState) -> (Menu, MenuItems) {
             None::<Accelerator>,
         ))
         .unwrap();
-    menu.append(&media_submenu).unwrap();
+
+    // Don't append media_submenu yet - added dynamically when connected
 
     menu.append(&PredefinedMenuItem::separator()).unwrap();
 
@@ -396,7 +439,13 @@ pub fn build_menu(state: &TrayState) -> (Menu, MenuItems) {
     .unwrap();
 
     let items = MenuItems {
+        menu,
         status,
+        screen_submenu,
+        nav_submenu,
+        media_submenu,
+        screen_menus_visible: std::cell::Cell::new(false),
+        media_menu_visible: std::cell::Cell::new(false),
         screen_cpu,
         screen_gpu,
         screen_download,
@@ -415,10 +464,8 @@ pub fn build_menu(state: &TrayState) -> (Menu, MenuItems) {
         toggle_reactive,
     };
 
-    // Set initial state
-    items.update_from_state(state);
-
-    (menu, items)
+    // Initial state is disconnected - menus will be added when board connects
+    items
 }
 
 /// Menu event that may require async handling

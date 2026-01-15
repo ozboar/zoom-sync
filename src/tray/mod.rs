@@ -78,11 +78,11 @@ async fn async_tray_app() -> Result<(), Box<dyn Error>> {
 
     // Load icon and build menu
     let icon = load_icon()?;
-    let (tray_menu, menu_items) = menu::build_menu(&state);
+    let menu_items = menu::build_menu(&state);
 
     // Create tray icon
     let _tray = TrayIconBuilder::new()
-        .with_menu(Box::new(tray_menu))
+        .with_menu(Box::new(menu_items.menu.clone()))
         .with_tooltip("zoom-sync")
         .with_icon(icon)
         .build()?;
@@ -253,9 +253,8 @@ async fn async_tray_app() -> Result<(), Box<dyn Error>> {
             _ = retry_interval.tick(), if board.is_none() => {
                 match BoardKind::Auto.as_board() {
                     Ok(mut b) => {
-                        state.connection = ConnectionStatus::Connected;
-                        menu_items.update_from_state(&state);
                         println!("connected to {}", b.info().name);
+                        state.connection = ConnectionStatus::Connected;
 
                         // Initialize temperature monitors
                         if state.config.system_info.enabled {
@@ -268,7 +267,6 @@ async fn async_tray_app() -> Result<(), Box<dyn Error>> {
                             let initial = &state.config.general.initial_screen;
                             if screen.set_screen(initial).is_ok() {
                                 state.current_screen = Some(initial.clone());
-                                menu_items.update_from_state(&state);
                             }
                         }
 
@@ -304,13 +302,15 @@ async fn async_tray_app() -> Result<(), Box<dyn Error>> {
                             });
                         }
 
+                        // Set board, then update menu with features
                         board = Some(b);
+                        menu_items.update_from_state(&state, &mut board);
                     }
                     Err(e) => {
                         if state.connection != ConnectionStatus::Disconnected {
                             eprintln!("failed to connect: {e}");
                             state.connection = ConnectionStatus::Disconnected;
-                            menu_items.update_from_state(&state);
+                            menu_items.update_from_state(&state, &mut board);
                         }
                     }
                 }
@@ -422,7 +422,7 @@ async fn handle_command(
                     match screen.set_screen(id) {
                         Ok(()) => {
                             state.current_screen = Some(id.to_string());
-                            menu_items.update_from_state(state);
+                            menu_items.update_from_state(state, board);
                             println!("set screen to {id}");
                         },
                         Err(e) => eprintln!("failed to set screen: {e}"),
@@ -468,7 +468,7 @@ async fn handle_command(
             state.config.weather.enabled = !state.config.weather.enabled;
             *weather_args = build_weather_args(&state.config);
             let _ = state.config.save();
-            menu_items.update_from_state(state);
+            menu_items.update_from_state(state, board);
             println!("weather: {}", state.config.weather.enabled);
         },
         TrayCommand::ToggleSystemInfo => {
@@ -482,7 +482,7 @@ async fn handle_command(
                 )));
             }
             let _ = state.config.save();
-            menu_items.update_from_state(state);
+            menu_items.update_from_state(state, board);
             println!("system info: {}", state.config.system_info.enabled);
         },
         TrayCommand::Toggle12HrTime => {
@@ -491,13 +491,13 @@ async fn handle_command(
                 let _ = crate::apply_time(b.as_mut(), state.config.general.use_12hr_time);
             }
             let _ = state.config.save();
-            menu_items.update_from_state(state);
+            menu_items.update_from_state(state, board);
             println!("12hr time: {}", state.config.general.use_12hr_time);
         },
         TrayCommand::ToggleFahrenheit => {
             state.config.general.fahrenheit = !state.config.general.fahrenheit;
             let _ = state.config.save();
-            menu_items.update_from_state(state);
+            menu_items.update_from_state(state, board);
             println!("fahrenheit: {}", state.config.general.fahrenheit);
 
             // Immediately update displays with new temperature unit
@@ -524,7 +524,7 @@ async fn handle_command(
         TrayCommand::ToggleReactiveMode => {
             state.config.general.reactive_mode = !state.config.general.reactive_mode;
             let _ = state.config.save();
-            menu_items.update_from_state(state);
+            menu_items.update_from_state(state, board);
             println!(
                 "reactive mode: {} (restart required)",
                 state.config.general.reactive_mode
@@ -634,7 +634,7 @@ async fn handle_command(
                 println!("config reloaded");
                 *weather_args = build_weather_args(&state.config);
             }
-            menu_items.update_from_state(state);
+            menu_items.update_from_state(state, board);
         },
     }
 
@@ -648,7 +648,7 @@ fn handle_disconnect(
 ) {
     *board = None;
     state.connection = ConnectionStatus::Reconnecting;
-    menu_items.update_from_state(state);
+    menu_items.update_from_state(state, board);
 }
 
 fn build_weather_args(config: &Config) -> crate::weather::WeatherArgs {
