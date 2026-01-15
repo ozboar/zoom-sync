@@ -1,9 +1,7 @@
 //! System tray interface for zoom-sync
 
-use std::collections::HashMap;
 use std::error::Error;
 use std::io::{stdout, Seek, Write};
-use std::mem::Discriminant;
 use std::time::Duration;
 
 /// Errors that can occur during image/gif processing
@@ -229,29 +227,19 @@ async fn async_tray_app() -> Result<(), Box<dyn Error>> {
                 }
             }
 
-            // Process commands (deduplicated by type - only latest of each type)
+            // Process commands
             Some(cmd) = cmd_rx.recv() => {
-                // Drain all pending commands into slots, keeping only latest of each type
-                let mut slots: HashMap<Discriminant<TrayCommand>, TrayCommand> = HashMap::new();
-                slots.insert(std::mem::discriminant(&cmd), cmd);
-                while let Ok(cmd) = cmd_rx.try_recv() {
-                    slots.insert(std::mem::discriminant(&cmd), cmd);
-                }
-
-                // Process deduplicated commands
-                for cmd in slots.into_values() {
-                    match handle_command(
-                        cmd,
-                        &mut board,
-                        &mut state,
-                        &menu_items,
-                        &mut cpu,
-                        &mut gpu,
-                        &mut weather_args,
-                    ).await {
-                        CommandResult::Quit => return Ok(()),
-                        CommandResult::Continue => {}
-                    }
+                match handle_command(
+                    cmd,
+                    &mut board,
+                    &mut state,
+                    &menu_items,
+                    &mut cpu,
+                    &mut gpu,
+                    &mut weather_args,
+                ).await {
+                    CommandResult::Quit => return Ok(()),
+                    CommandResult::Continue => {}
                 }
             }
 
