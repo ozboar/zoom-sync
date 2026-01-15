@@ -424,6 +424,12 @@ async fn handle_command(
                 }
             }
         },
+        TrayCommand::SetDefaultScreen(id) => {
+            state.config.general.initial_screen = id.to_string();
+            let _ = state.config.save();
+            menu_items.update_from_state(state, board);
+            println!("default screen: {id}");
+        },
         TrayCommand::ScreenUp => {
             if let Some(ref mut b) = board {
                 if let Some(screen) = b.as_screen() {

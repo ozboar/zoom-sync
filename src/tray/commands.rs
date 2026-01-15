@@ -7,6 +7,8 @@ use crate::config::Config;
 pub enum TrayCommand {
     /// Set screen to specific position (by ID)
     SetScreen(&'static str),
+    /// Set default screen on connection (by ID)
+    SetDefaultScreen(&'static str),
     /// Move screen up
     ScreenUp,
     /// Move screen down
