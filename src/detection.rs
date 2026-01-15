@@ -6,7 +6,7 @@ use bpaf::Bpaf;
 use hidapi::HidApi;
 use zoom65v3::{Zoom65v3, INFO as ZOOM65V3_INFO};
 use zoom_tkl_dyna::{ZoomTklDyna, INFO as ZOOM_TKL_DYNA_INFO};
-use zoom_sync_core::{Board, BoardError, BoardInfo};
+use zoom_sync_core::{Board, BoardError, BoardInfo, Capabilities};
 
 /// Supported board types
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Bpaf)]
@@ -54,7 +54,60 @@ fn matches(device: &hidapi::DeviceInfo, info: &BoardInfo) -> bool {
         && info.usage.is_none_or(|u| device.usage() == u)
 }
 
+/// All known board infos for iteration
+#[allow(dead_code)]
+pub const ALL_BOARDS: &[&BoardInfo] = &[&ZOOM65V3_INFO, &ZOOM_TKL_DYNA_INFO];
+
 impl BoardKind {
+    /// Get the static board info without connecting
+    pub fn info(&self) -> Option<&'static BoardInfo> {
+        match self {
+            BoardKind::Auto => None,
+            BoardKind::Zoom65v3 => Some(&ZOOM65V3_INFO),
+            BoardKind::ZoomTklDyna => Some(&ZOOM_TKL_DYNA_INFO),
+        }
+    }
+
+    /// Detect which board is connected without opening it
+    pub fn detect() -> Option<BoardKind> {
+        let api = HidApi::new().ok()?;
+        for device in api.device_list() {
+            if matches(device, &ZOOM65V3_INFO) {
+                return Some(BoardKind::Zoom65v3);
+            }
+            if matches(device, &ZOOM_TKL_DYNA_INFO) {
+                return Some(BoardKind::ZoomTklDyna);
+            }
+        }
+        None
+    }
+
+    /// Get capabilities for this board kind.
+    /// For Auto, attempts to detect the connected board first.
+    pub fn capabilities(&self) -> Capabilities {
+        match self {
+            BoardKind::Auto => {
+                // Try to detect, fall back to union of all capabilities
+                Self::detect()
+                    .and_then(|k| k.info())
+                    .map(|i| i.capabilities)
+                    .unwrap_or_else(|| {
+                        // Union of all board capabilities when no board detected
+                        Capabilities {
+                            time: true,
+                            weather: true,
+                            system_info: true,
+                            screen: true,
+                            image: true,
+                            gif: true,
+                            theme: true,
+                        }
+                    })
+            },
+            _ => self.info().map(|i| i.capabilities).unwrap_or_default(),
+        }
+    }
+
     /// Open the specified board, or auto-detect if Auto
     pub fn as_board(&self) -> Result<Box<dyn Board>, BoardError> {
         match self {

@@ -1,7 +1,7 @@
 [package]
 name = "zoom-sync"
 version = "0.2.0"
-description = "Cross-platform utility for syncing zoom65v3 screen modules"
+description = "Cross-platform utility for syncing Zoom keyboard screen modules"
 repository = "https://github.com/ozwaldorf/zoom-sync"
 authors = [ "ozwaldorf <self@ossian.dev>" ]
 license = "MIT"

@@ -9,9 +9,9 @@
 \fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fICOMMAND ...\fP\fR
 \fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBtime\fP\fR \fP\fR
 \fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBweather\fP\fR \fP\fR[\fP\fB\-f\fP\fR] (\fP\fB\-\-no\-weather\fP\fR | [\fP\fB\-\-coords\fP\fR \fP\fILAT\fP\fR \fP\fILON\fP\fR] | \fP\fB\-w\fP\fR \fP\fIWMO\fP\fR \fP\fICUR\fP\fR \fP\fIMIN\fP\fR \fP\fIMAX\fP\fR)\fP\fR
-\fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBsystem\fP\fR \fP\fR[\fP\fB\-f\fP\fR] ([\fP\fB\-\-cpu\fP\fR=\fP\fILABEL\fP\fR] | \fP\fB\-c\fP\fR=\fP\fITEMP\fP\fR) ([\fP\fB\-\-gpu\fP\fR=\fP\fIID\fP\fR] | \fP\fB\-g\fP\fR=\fP\fITEMP\fP\fR) [\fP\fB\-d\fP\fR=\fP\fIARG\fP\fR]\fP\fR
+\fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBsystem\fP\fR \fP\fR[\fP\fB\-f\fP\fR] ([\fP\fB\-\-cpu\fP\fR=\fP\fILABEL\fP\fR] | \fP\fB\-c\fP\fR=\fP\fITEMP\fP\fR) ([\fP\fB\-\-gpu\fP\fR=\fP\fIID\fP\fR] | \fP\fB\-g\fP\fR=\fP\fITEMP\fP\fR) [\fP\fB\-d\fP\fR=\fP\fISPEED\fP\fR]\fP\fR
 \fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBscreen\fP\fR \fP\fR(\fP\fB\-s\fP\fR=\fP\fIPOSITION\fP\fR | \fP\fB\-\-up\fP\fR | \fP\fB\-\-down\fP\fR | \fP\fB\-\-switch\fP\fR)\fP\fR
-\fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBtheme\fP\fR \fP\fR[\fP\fB\-b\fP\fR=\fP\fIARG\fP\fR] [\fP\fB\-c\fP\fR=\fP\fIARG\fP\fR] [\fP\fB\-i\fP\fR=\fP\fIARG\fP\fR]\fP\fR
+\fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBtheme\fP\fR \fP\fR[\fP\fB\-b\fP\fR=\fP\fICOLOR\fP\fR] [\fP\fB\-c\fP\fR=\fP\fICOLOR\fP\fR] [\fP\fB\-i\fP\fR=\fP\fIID\fP\fR]\fP\fR
 \fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBimage\fP\fR \fP\fR([\fP\fB\-n\fP\fR] [\fP\fB\-b\fP\fR=\fP\fIARG\fP\fR] \fP\fIPATH\fP\fR | \fP\fICOMMAND ...\fP\fR)\fP\fR
 \fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBimage\fP\fR \fP\fBclear\fP\fR \fP\fR
 \fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBgif\fP\fR \fP\fR([\fP\fB\-n\fP\fR] [\fP\fB\-b\fP\fR=\fP\fIARG\fP\fR] \fP\fIPATH\fP\fR | \fP\fICOMMAND ...\fP\fR)\fP\fR
@@ -90,7 +90,7 @@
 .PP
 .TP
 \fBtheme\fP
-\fRSet screen theme colors (zoom\-tkl\-dyna only)\fP
+\fRSet screen theme colors\fP
 .PP
 .TP
 \fBimage\fP
@@ -177,7 +177,7 @@ unitless.\fP
 .SH NAME
 \fRzoom\-sync \- \fP\fRSet system info\fP
 .SH SYNOPSIS
-\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBsystem\fP\fR \fP\fR[\fP\fB\-f\fP\fR] ([\fP\fB\-\-cpu\fP\fR=\fP\fILABEL\fP\fR] | \fP\fB\-c\fP\fR=\fP\fITEMP\fP\fR) ([\fP\fB\-\-gpu\fP\fR=\fP\fIID\fP\fR] | \fP\fB\-g\fP\fR=\fP\fITEMP\fP\fR) [\fP\fB\-d\fP\fR=\fP\fIARG\fP\fR]\fP
+\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBsystem\fP\fR \fP\fR[\fP\fB\-f\fP\fR] ([\fP\fB\-\-cpu\fP\fR=\fP\fILABEL\fP\fR] | \fP\fB\-c\fP\fR=\fP\fITEMP\fP\fR) ([\fP\fB\-\-gpu\fP\fR=\fP\fIID\fP\fR] | \fP\fB\-g\fP\fR=\fP\fITEMP\fP\fR) [\fP\fB\-d\fP\fR=\fP\fISPEED\fP\fR]\fP
 .PP
 .SS AVAILABLE\ OPTIONS:
 .TP
@@ -207,7 +207,7 @@ unitless.\fP
 \fRManually set GPU temperature\fP
 .PP
 .TP
-\fB\-d\fP\fR, \fP\fB\-\-download\fP\fR=\fP\fIARG\fP
+\fB\-d\fP\fR, \fP\fB\-\-download\fP\fR=\fP\fISPEED\fP
 \fRManually set download speed\fP
 .PP
 .TP
@@ -246,27 +246,27 @@ unitless.\fP
 .PP
 .SH ZOOM-SYNC\ SET\ THEME\ 
 .SH NAME
-\fRzoom\-sync \- \fP\fRSet screen theme colors (zoom\-tkl\-dyna only)\fP
+\fRzoom\-sync \- \fP\fRSet screen theme colors\fP
 .SH SYNOPSIS
-\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBtheme\fP\fR \fP\fR[\fP\fB\-b\fP\fR=\fP\fIARG\fP\fR] [\fP\fB\-c\fP\fR=\fP\fIARG\fP\fR] [\fP\fB\-i\fP\fR=\fP\fIARG\fP\fR]\fP
+\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBtheme\fP\fR \fP\fR[\fP\fB\-b\fP\fR=\fP\fICOLOR\fP\fR] [\fP\fB\-c\fP\fR=\fP\fICOLOR\fP\fR] [\fP\fB\-i\fP\fR=\fP\fIID\fP\fR]\fP
 .PP
 .SS AVAILABLE\ OPTIONS:
 .TP
-\fB\-b\fP\fR, \fP\fB\-\-bg\fP\fR=\fP\fIARG\fP
+\fB\-b\fP\fR, \fP\fB\-\-bg\fP\fR=\fP\fICOLOR\fP
 \fRBackground color (hex: #RRGGBB or #RGB)\fP
 .PP
 .TP
 \fR[default: #000000]\fP
 .PP
 .TP
-\fB\-c\fP\fR, \fP\fB\-\-color\fP\fR=\fP\fIARG\fP
+\fB\-c\fP\fR, \fP\fB\-\-color\fP\fR=\fP\fICOLOR\fP
 \fRFont/foreground color (hex: #RRGGBB or #RGB)\fP
 .PP
 .TP
 \fR[default: #ffffff]\fP
 .PP
 .TP
-\fB\-i\fP\fR, \fP\fB\-\-id\fP\fR=\fP\fIARG\fP
+\fB\-i\fP\fR, \fP\fB\-\-id\fP\fR=\fP\fIID\fP
 \fRTheme preset ID\fP
 .PP
 .TP

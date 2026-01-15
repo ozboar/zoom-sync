@@ -12,7 +12,7 @@ use chrono::{DateTime, Datelike, Local, TimeZone, Timelike};
 use hidapi::{HidApi, HidDevice};
 use types::{encode_temperature, Rgb565, ScreenMode, WeatherIcon};
 use zoom_sync_core::{
-    Board, BoardError, BoardInfo, HasImage, HasTheme, HasTime, HasWeather, Result,
+    Board, BoardError, BoardInfo, Capabilities, HasImage, HasTheme, HasTime, HasWeather, Result,
 };
 
 pub mod abi;
@@ -34,6 +34,15 @@ pub static INFO: BoardInfo = BoardInfo {
     product_id: None,
     usage_page: Some(consts::USAGE_PAGE),
     usage: Some(consts::USAGE),
+    capabilities: Capabilities {
+        time: true,
+        weather: true,
+        system_info: false,
+        screen: false,
+        image: true,
+        gif: false,
+        theme: true,
+    },
 };
 
 /// Screen dimensions

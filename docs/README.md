@@ -75,7 +75,7 @@ Set specific options on the keyboard
 - **`screen`** &mdash; 
   Change current screen
 - **`theme`** &mdash; 
-  Set screen theme colors (zoom-tkl-dyna only)
+  Set screen theme colors
 - **`image`** &mdash; 
   Upload static image
 - **`gif`** &mdash; 
@@ -140,7 +140,7 @@ Set weather data
 
 Set system info
 
-**Usage**: **`zoom-sync`** **`set`** **`system`** \[**`-f`**\] (\[**`--cpu`**=_`LABEL`_\] | **`-c`**=_`TEMP`_) (\[**`--gpu`**=_`ID`_\] | **`-g`**=_`TEMP`_) \[**`-d`**=_`ARG`_\]
+**Usage**: **`zoom-sync`** **`set`** **`system`** \[**`-f`**\] (\[**`--cpu`**=_`LABEL`_\] | **`-c`**=_`TEMP`_) (\[**`--gpu`**=_`ID`_\] | **`-g`**=_`TEMP`_) \[**`-d`**=_`SPEED`_\]
 
 **Available options:**
 - **`-f`**, **`--farenheit`** &mdash; 
@@ -157,7 +157,7 @@ Set system info
   [default: 0]
 - **`-g`**, **`--gpu-temp`**=_`TEMP`_ &mdash; 
   Manually set GPU temperature
-- **`-d`**, **`--download`**=_`ARG`_ &mdash; 
+- **`-d`**, **`--download`**=_`SPEED`_ &mdash; 
   Manually set download speed
 - **`-h`**, **`--help`** &mdash; 
   Prints help information
@@ -188,20 +188,20 @@ Change current screen
 
 ## zoom-sync set theme
 
-Set screen theme colors (zoom-tkl-dyna only)
+Set screen theme colors
 
-**Usage**: **`zoom-sync`** **`set`** **`theme`** \[**`-b`**=_`ARG`_\] \[**`-c`**=_`ARG`_\] \[**`-i`**=_`ARG`_\]
+**Usage**: **`zoom-sync`** **`set`** **`theme`** \[**`-b`**=_`COLOR`_\] \[**`-c`**=_`COLOR`_\] \[**`-i`**=_`ID`_\]
 
 **Available options:**
-- **`-b`**, **`--bg`**=_`ARG`_ &mdash; 
+- **`-b`**, **`--bg`**=_`COLOR`_ &mdash; 
   Background color (hex: #RRGGBB or #RGB)
    
   [default: #000000]
-- **`-c`**, **`--color`**=_`ARG`_ &mdash; 
+- **`-c`**, **`--color`**=_`COLOR`_ &mdash; 
   Font/foreground color (hex: #RRGGBB or #RGB)
    
   [default: #ffffff]
-- **`-i`**, **`--id`**=_`ARG`_ &mdash; 
+- **`-i`**, **`--id`**=_`ID`_ &mdash; 
   Theme preset ID
 - **`-h`**, **`--help`** &mdash; 
   Prints help information

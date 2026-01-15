@@ -9,7 +9,7 @@ use image::codecs::gif::GifDecoder;
 use image::codecs::png::PngDecoder;
 use image::codecs::webp::WebPDecoder;
 use image::AnimationDecoder;
-use zoom_sync_core::Board;
+use zoom_sync_core::{Board, Capabilities};
 
 use crate::detection::{board_kind, BoardKind};
 use crate::info::{apply_system, cpu_mode, gpu_mode, CpuMode, GpuMode};
@@ -37,57 +37,162 @@ No effect on any manually provided data.",
         .switch()
 }
 
-#[derive(Clone, Debug, Bpaf)]
+/// Pre-parse board kind from args before full parsing
+fn pre_parse_board() -> BoardKind {
+    let args: Vec<String> = std::env::args().collect();
+    for (i, arg) in args.iter().enumerate() {
+        if arg == "-b" || arg == "--board" {
+            if let Some(board_str) = args.get(i + 1) {
+                if let Ok(kind) = board_str.parse() {
+                    return kind;
+                }
+            }
+        } else if let Some(board_str) = arg.strip_prefix("--board=") {
+            if let Ok(kind) = board_str.parse() {
+                return kind;
+            }
+        }
+    }
+    BoardKind::Auto
+}
+
+/// Set commands - variants are dynamically included based on board capabilities
+#[derive(Clone, Debug)]
 enum SetCommand {
-    /// Sync time to system clock
-    #[bpaf(command)]
     Time,
-    /// Set weather data
-    #[bpaf(command)]
     Weather {
-        #[bpaf(external)]
         farenheit: bool,
-        #[bpaf(external)]
         weather_args: WeatherArgs,
     },
-    /// Set system info
-    #[bpaf(command)]
     System {
-        #[bpaf(external)]
         farenheit: bool,
-        #[bpaf(external)]
         cpu_mode: CpuMode,
-        #[bpaf(external)]
         gpu_mode: GpuMode,
-        /// Manually set download speed
-        #[bpaf(short, long)]
         download: Option<f32>,
     },
-    /// Change current screen
-    #[bpaf(command, fallback_to_usage)]
-    Screen(#[bpaf(external(screen_args))] ScreenArgs),
-    /// Set screen theme colors (zoom-tkl-dyna only)
-    #[bpaf(command)]
+    Screen(ScreenArgs),
     Theme {
-        /// Background color (hex: #RRGGBB or #RGB)
-        #[bpaf(short, long, fallback(Color([0; 3])), display_fallback)]
         bg: Color,
-        /// Font/foreground color (hex: #RRGGBB or #RGB)
-        #[bpaf(short('c'), long("color"), fallback(Color([255; 3])), display_fallback)]
         font: Color,
-        /// Theme preset ID
-        #[bpaf(short, long, fallback(0u8))]
         id: u8,
     },
-    /// Upload static image
-    #[bpaf(command, fallback_to_usage)]
-    Image(#[bpaf(external(set_media_args))] SetMediaArgs),
-    /// Upload animated image (gif/webp/apng)
-    #[bpaf(command, fallback_to_usage)]
-    Gif(#[bpaf(external(set_media_args))] SetMediaArgs),
-    /// Clear all media files
-    #[bpaf(command)]
+    Image(SetMediaArgs),
+    Gif(SetMediaArgs),
     Clear,
+}
+
+/// Build set_command parser dynamically based on capabilities
+fn set_command_for(caps: &Capabilities) -> impl Parser<SetCommand> {
+    let mut commands: Vec<Box<dyn Parser<SetCommand>>> = Vec::new();
+
+    if caps.time {
+        let time = bpaf::pure(SetCommand::Time)
+            .to_options()
+            .descr("Sync time to system clock")
+            .command("time")
+            .help("Sync time to system clock");
+        commands.push(Box::new(time));
+    }
+
+    if caps.weather {
+        let weather = bpaf::construct!(SetCommand::Weather {
+            farenheit(),
+            weather_args()
+        })
+        .to_options()
+        .descr("Set weather data")
+        .command("weather")
+        .help("Set weather data");
+        commands.push(Box::new(weather));
+    }
+
+    if caps.system_info {
+        let download = bpaf::short('d')
+            .long("download")
+            .help("Manually set download speed")
+            .argument::<f32>("SPEED")
+            .optional();
+        let system = bpaf::construct!(SetCommand::System {
+            farenheit(),
+            cpu_mode(),
+            gpu_mode(),
+            download
+        })
+        .to_options()
+        .descr("Set system info")
+        .command("system")
+        .help("Set system info");
+        commands.push(Box::new(system));
+    }
+
+    if caps.screen {
+        let screen = screen_args()
+            .map(SetCommand::Screen)
+            .to_options()
+            .descr("Change current screen")
+            .command("screen")
+            .help("Change current screen");
+        commands.push(Box::new(screen));
+    }
+
+    if caps.theme {
+        let bg = bpaf::short('b')
+            .long("bg")
+            .help("Background color (hex: #RRGGBB or #RGB)")
+            .argument::<Color>("COLOR")
+            .fallback(Color([0; 3]))
+            .display_fallback();
+        let font = bpaf::short('c')
+            .long("color")
+            .help("Font/foreground color (hex: #RRGGBB or #RGB)")
+            .argument::<Color>("COLOR")
+            .fallback(Color([255; 3]))
+            .display_fallback();
+        let id = bpaf::short('i')
+            .long("id")
+            .help("Theme preset ID")
+            .argument::<u8>("ID")
+            .fallback(0u8);
+        let theme = bpaf::construct!(SetCommand::Theme { bg, font, id })
+            .to_options()
+            .descr("Set screen theme colors")
+            .command("theme")
+            .help("Set screen theme colors");
+        commands.push(Box::new(theme));
+    }
+
+    if caps.image {
+        let image = set_media_args()
+            .map(SetCommand::Image)
+            .to_options()
+            .descr("Upload static image")
+            .command("image")
+            .help("Upload static image");
+        commands.push(Box::new(image));
+    }
+
+    if caps.gif {
+        let gif = set_media_args()
+            .map(SetCommand::Gif)
+            .to_options()
+            .descr("Upload animated image (gif/webp/apng)")
+            .command("gif")
+            .help("Upload animated image (gif/webp/apng)");
+        commands.push(Box::new(gif));
+    }
+
+    // Clear is always available if we have any media capability
+    if caps.image || caps.gif {
+        let clear = bpaf::pure(SetCommand::Clear)
+            .to_options()
+            .descr("Clear all media files")
+            .command("clear")
+            .help("Clear all media files");
+        commands.push(Box::new(clear));
+    }
+
+    // Combine all commands
+    bpaf::choice(commands)
 }
 
 #[derive(Clone, Debug, Bpaf)]
@@ -146,12 +251,9 @@ impl FromStr for Color {
     }
 }
 
-#[derive(Clone, Debug, Bpaf)]
-#[bpaf(options, version, descr(env!("CARGO_PKG_DESCRIPTION")))]
+#[derive(Clone, Debug)]
 struct Cli {
-    #[bpaf(external(board_kind))]
     board: BoardKind,
-    #[bpaf(external(command))]
     command: Command,
 }
 
@@ -164,21 +266,29 @@ enum Command {
     Set { set_command: SetCommand },
 }
 
-fn command() -> impl Parser<Command> {
+fn command_for(caps: &Capabilities, board_note: &str) -> impl Parser<Command> {
     let tray = bpaf::pure(Command::Tray)
         .to_options()
         .descr("Run with a system tray menu for GUI control")
         .command("tray")
         .help("Run with a system tray menu for GUI control (default)");
 
-    let set = set_command()
+    let set = set_command_for(caps)
         .map(|set_command| Command::Set { set_command })
         .to_options()
         .descr("Set specific options on the keyboard")
+        .header(board_note)
         .command("set")
         .help("Set specific options on the keyboard");
 
     bpaf::construct!([tray, set]).fallback(Command::Tray)
+}
+
+/// Build the CLI parser dynamically based on detected board capabilities
+fn cli_for(caps: &Capabilities, board_note: &str) -> impl Parser<Cli> {
+    let board = board_kind();
+    let command = command_for(caps, board_note);
+    bpaf::construct!(Cli { board, command })
 }
 
 /// Convert RGB888 to RGB565
@@ -200,7 +310,35 @@ pub fn apply_time(board: &mut dyn Board, _12hr: bool) -> Result<(), Box<dyn Erro
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let cli = cli().run();
+    // Pre-parse board to determine capabilities for dynamic CLI building
+    let pre_board = pre_parse_board();
+    let caps = pre_board.capabilities();
+
+    // Build note for set subcommand with board info
+    let board_note = match pre_board {
+        BoardKind::Auto => {
+            if let Some(detected) = BoardKind::detect() {
+                format!(
+                    "Note: Showing available commands for your {}",
+                    detected.info().map(|i| i.name).unwrap_or("board")
+                )
+            } else {
+                "Note: No board detected - showing all commands".to_string()
+            }
+        },
+        _ => format!(
+            "Note: Showing available commands for your {}",
+            pre_board.info().map(|i| i.name).unwrap_or("board")
+        ),
+    };
+
+    // Build and run CLI with board-specific commands
+    let cli = cli_for(&caps, &board_note)
+        .to_options()
+        .version(env!("CARGO_PKG_VERSION"))
+        .descr(env!("CARGO_PKG_DESCRIPTION"))
+        .run();
+
     match cli.command {
         Command::Tray => {
             let _lock = lock::Lock::acquire()?;
@@ -353,7 +491,20 @@ fn main() -> Result<(), Box<dyn Error>> {
 #[test]
 fn generate_docs() {
     let app = env!("CARGO_PKG_NAME");
-    let options = cli();
+    // Use full capabilities for docs to show all commands
+    let all_caps = Capabilities {
+        time: true,
+        weather: true,
+        system_info: true,
+        screen: true,
+        image: true,
+        gif: true,
+        theme: true,
+    };
+    let options = cli_for(&all_caps, "")
+        .to_options()
+        .version(env!("CARGO_PKG_VERSION"))
+        .descr(env!("CARGO_PKG_DESCRIPTION"));
 
     let roff = options.render_manpage(app, bpaf::doc::Section::General, None, None, None);
     std::fs::write("docs/zoom-sync.1", roff).expect("failed to write manpage");

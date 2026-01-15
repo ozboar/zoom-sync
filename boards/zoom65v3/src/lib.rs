@@ -8,8 +8,8 @@ use float::DumbFloat16;
 use hidapi::{HidApi, HidDevice};
 use types::{Icon, ScreenPosition, ScreenTheme, UploadChannel};
 use zoom_sync_core::{
-    Board, BoardError, BoardInfo, HasGif, HasImage, HasScreen, HasScreenSize, HasSystemInfo,
-    HasTime, HasWeather, Result, ScreenGroup, ScreenPosition as CoreScreenPosition,
+    Board, BoardError, BoardInfo, Capabilities, HasGif, HasImage, HasScreen, HasScreenSize,
+    HasSystemInfo, HasTime, HasWeather, Result, ScreenGroup, ScreenPosition as CoreScreenPosition,
 };
 
 pub mod abi;
@@ -32,6 +32,15 @@ pub static INFO: BoardInfo = BoardInfo {
     product_id: Some(consts::ZOOM65_PRODUCT_ID),
     usage_page: Some(consts::ZOOM65_USAGE_PAGE),
     usage: Some(consts::ZOOM65_USAGE),
+    capabilities: Capabilities {
+        time: true,
+        weather: true,
+        system_info: true,
+        screen: true,
+        image: true,
+        gif: true,
+        theme: false,
+    },
 };
 
 /// Screen positions for this board

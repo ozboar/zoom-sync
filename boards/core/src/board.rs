@@ -2,6 +2,18 @@
 
 use crate::features::{HasGif, HasImage, HasScreen, HasSystemInfo, HasTheme, HasTime, HasWeather};
 
+/// Static capability flags for a board (compile-time known)
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Capabilities {
+    pub time: bool,
+    pub weather: bool,
+    pub system_info: bool,
+    pub screen: bool,
+    pub image: bool,
+    pub gif: bool,
+    pub theme: bool,
+}
+
 /// Static information about a board type for detection and CLI
 #[derive(Debug, Clone, Copy)]
 pub struct BoardInfo {
@@ -11,6 +23,7 @@ pub struct BoardInfo {
     pub product_id: Option<u16>,
     pub usage_page: Option<u16>,
     pub usage: Option<u16>,
+    pub capabilities: Capabilities,
 }
 
 /// Screen position for menu building
