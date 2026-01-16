@@ -1,16 +1,29 @@
 //! Core Board trait and related types.
 
-use crate::features::{HasGif, HasImage, HasScreen, HasSystemInfo, HasTime, HasWeather};
+use crate::features::{HasGif, HasImage, HasScreen, HasSystemInfo, HasTheme, HasTime, HasWeather};
+
+/// Static capability flags for a board (compile-time known)
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Capabilities {
+    pub time: bool,
+    pub weather: bool,
+    pub system_info: bool,
+    pub screen: bool,
+    pub image: bool,
+    pub gif: bool,
+    pub theme: bool,
+}
 
 /// Static information about a board type for detection and CLI
 #[derive(Debug, Clone, Copy)]
 pub struct BoardInfo {
     pub name: &'static str,
     pub cli_name: &'static str,
-    pub vendor_id: u16,
-    pub product_id: u16,
+    pub vendor_id: Option<u16>,
+    pub product_id: Option<u16>,
     pub usage_page: Option<u16>,
     pub usage: Option<u16>,
+    pub capabilities: Capabilities,
 }
 
 /// Screen position for menu building
@@ -60,6 +73,9 @@ pub trait Board: Send {
         None
     }
     fn as_gif(&mut self) -> Option<&mut dyn HasGif> {
+        None
+    }
+    fn as_theme(&mut self) -> Option<&mut dyn HasTheme> {
         None
     }
 }

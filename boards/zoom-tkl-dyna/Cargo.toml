@@ -1,7 +1,7 @@
 [package]
-name = "zoom65v3"
-version = "0.4.0"
-description = "Reverse engineered hidapi bindings to zoom65v3 screen modules"
+name = "zoom-tkl-dyna"
+version = "0.1.0"
+description = "Reverse engineered hidapi bindings to zoom-tkl-dyna screen modules"
 repository = "https://github.com/ozwaldorf/zoom-sync"
 authors = [ "ozwaldorf <self@ossian.dev>" ]
 license = "MIT"
@@ -11,3 +11,6 @@ edition = "2021"
 zoom-sync-core = { path = "../core", version = "0.1" }
 hidapi = { workspace = true }
 chrono = { workspace = true }
+image = "0.25.5"
+rayon = "1.10.0"
+rgb565 = "0.1.3"

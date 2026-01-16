@@ -8,8 +8,8 @@ use float::DumbFloat16;
 use hidapi::{HidApi, HidDevice};
 use types::{Icon, ScreenPosition, ScreenTheme, UploadChannel};
 use zoom_sync_core::{
-    Board, BoardError, BoardInfo, HasGif, HasImage, HasScreen, HasScreenSize, HasSystemInfo,
-    HasTime, HasWeather, Result, ScreenGroup, ScreenPosition as CoreScreenPosition,
+    Board, BoardError, BoardInfo, Capabilities, HasGif, HasImage, HasScreen, HasScreenSize,
+    HasSystemInfo, HasTime, HasWeather, Result, ScreenGroup, ScreenPosition as CoreScreenPosition,
 };
 
 pub mod abi;
@@ -28,10 +28,19 @@ pub mod consts {
 pub static INFO: BoardInfo = BoardInfo {
     name: "Zoom65 V3",
     cli_name: "zoom65v3",
-    vendor_id: consts::ZOOM65_VENDOR_ID,
-    product_id: consts::ZOOM65_PRODUCT_ID,
+    vendor_id: Some(consts::ZOOM65_VENDOR_ID),
+    product_id: Some(consts::ZOOM65_PRODUCT_ID),
     usage_page: Some(consts::ZOOM65_USAGE_PAGE),
     usage: Some(consts::ZOOM65_USAGE),
+    capabilities: Capabilities {
+        time: true,
+        weather: true,
+        system_info: true,
+        screen: true,
+        image: true,
+        gif: true,
+        theme: false,
+    },
 };
 
 /// Screen positions for this board
@@ -401,10 +410,17 @@ impl HasTime for Zoom65v3 {
 }
 
 impl HasWeather for Zoom65v3 {
-    fn set_weather(&mut self, wmo: u8, is_day: bool, current: u8, low: u8, high: u8) -> Result<()> {
+    fn set_weather(&mut self, wmo: u8, is_day: bool, current: i16, low: i16, high: i16) -> Result<()> {
         let icon =
             Icon::from_wmo(wmo, is_day).ok_or(BoardError::CommandFailed("unknown WMO code"))?;
-        Zoom65v3::set_weather(self, icon, current, low, high)
+        // Clamp to u8 range for this board's protocol
+        Zoom65v3::set_weather(
+            self,
+            icon,
+            current.clamp(0, 255) as u8,
+            low.clamp(0, 255) as u8,
+            high.clamp(0, 255) as u8,
+        )
     }
 }
 

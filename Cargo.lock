@@ -4505,6 +4505,7 @@ dependencies = [
  "toml 0.9.11+spec-1.1.0",
  "tray-icon",
  "zoom-sync-core",
+ "zoom-tkl-dyna",
  "zoom65v3",
 ]
 
@@ -4515,6 +4516,18 @@ dependencies = [
  "chrono",
  "hidapi",
  "thiserror 2.0.17",
+]
+
+[[package]]
+name = "zoom-tkl-dyna"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hidapi",
+ "image",
+ "rayon",
+ "rgb565",
+ "zoom-sync-core",
 ]
 
 [[package]]
