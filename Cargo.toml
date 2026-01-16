@@ -1,6 +1,6 @@
 [package]
 name = "zoom-sync"
-version = "0.1.2"
+version = "0.2.0"
 description = "Cross-platform utility for syncing zoom65v3 screen modules"
 repository = "https://github.com/ozwaldorf/zoom-sync"
 authors = [ "ozwaldorf <self@ossian.dev>" ]
@@ -16,8 +16,8 @@ hidapi = { version = "2.6", features = ["windows-native"] } # board detection
 
 [dependencies]
 # keyboard management
-zoom-sync-core = { path = "./boards/core" }
-zoom65v3 = { path = "./boards/zoom65v3", version = "0.3" }
+zoom-sync-core = { path = "./boards/core", version = "0.1" }
+zoom65v3 = { path = "./boards/zoom65v3", version = "0.4" }
 hidapi = { workspace = true }
 
 # runtime and scaffalding

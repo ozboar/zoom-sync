@@ -1,6 +1,6 @@
 [package]
 name = "zoom65v3"
-version = "0.3.0"
+version = "0.4.0"
 description = "Reverse engineered hidapi bindings to zoom65v3 screen modules"
 repository = "https://github.com/ozwaldorf/zoom-sync"
 authors = [ "ozwaldorf <self@ossian.dev>" ]
