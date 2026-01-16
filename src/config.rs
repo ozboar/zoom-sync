@@ -87,10 +87,8 @@ pub struct GeneralConfig {
     pub fahrenheit: bool,
     /// Use 12-hour time format
     pub use_12hr_time: bool,
-    /// Initial screen position on connect
+    /// Initial screen position on connect (use "reactive" for reactive mode on Linux)
     pub initial_screen: String,
-    /// Enable reactive mode (Linux only)
-    pub reactive_mode: bool,
 }
 
 impl Default for GeneralConfig {
@@ -99,7 +97,6 @@ impl Default for GeneralConfig {
             fahrenheit: false,
             use_12hr_time: false,
             initial_screen: "meletrix".into(),
-            reactive_mode: false,
         }
     }
 }

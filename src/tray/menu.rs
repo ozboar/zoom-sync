@@ -23,19 +23,14 @@ pub mod ids {
     pub const SCREEN_IMAGE: &str = "screen_image";
     pub const SCREEN_GIF: &str = "screen_gif";
     pub const SCREEN_BATTERY: &str = "screen_battery";
-
-    // Screen navigation
-    pub const NAV_UP: &str = "nav_up";
-    pub const NAV_DOWN: &str = "nav_down";
-    pub const NAV_SWITCH: &str = "nav_switch";
+    #[cfg(target_os = "linux")]
+    pub const SCREEN_REACTIVE: &str = "screen_reactive";
 
     // Settings toggles
     pub const TOGGLE_WEATHER: &str = "toggle_weather";
     pub const TOGGLE_SYSTEM: &str = "toggle_system";
     pub const TOGGLE_12HR: &str = "toggle_12hr";
     pub const TOGGLE_FAHRENHEIT: &str = "toggle_fahrenheit";
-    #[cfg(target_os = "linux")]
-    pub const TOGGLE_REACTIVE: &str = "toggle_reactive";
 
     // Media
     pub const UPLOAD_IMAGE: &str = "upload_image";
@@ -58,10 +53,9 @@ pub struct MenuItems {
     pub status: MenuItem,
     // Submenus (dynamically added/removed based on board features)
     pub screen_submenu: Submenu,
-    pub nav_submenu: Submenu,
     pub media_submenu: Submenu,
     // Track which feature menus are currently shown
-    screen_menus_visible: std::cell::Cell<bool>,
+    screen_menu_visible: std::cell::Cell<bool>,
     media_menu_visible: std::cell::Cell<bool>,
     // Screen position items
     pub screen_cpu: CheckMenuItem,
@@ -74,13 +68,13 @@ pub struct MenuItems {
     pub screen_image: CheckMenuItem,
     pub screen_gif: CheckMenuItem,
     pub screen_battery: CheckMenuItem,
+    #[cfg(target_os = "linux")]
+    pub screen_reactive: CheckMenuItem,
     // Settings toggles
     pub toggle_weather: CheckMenuItem,
     pub toggle_system: CheckMenuItem,
     pub toggle_12hr: CheckMenuItem,
     pub toggle_fahrenheit: CheckMenuItem,
-    #[cfg(target_os = "linux")]
-    pub toggle_reactive: CheckMenuItem,
 }
 
 impl MenuItems {
@@ -101,26 +95,20 @@ impl MenuItems {
         };
         self.status.set_text(status_text);
 
-        // Add/remove screen menus based on feature
-        let screen_visible = self.screen_menus_visible.get();
+        // Add/remove screen menu based on feature
+        let screen_visible = self.screen_menu_visible.get();
         if has_screen && !screen_visible {
             self.menu.insert(&self.screen_submenu, 2).unwrap();
-            self.menu.insert(&self.nav_submenu, 3).unwrap();
-            self.screen_menus_visible.set(true);
+            self.screen_menu_visible.set(true);
         } else if !has_screen && screen_visible {
             self.menu.remove(&self.screen_submenu).unwrap();
-            self.menu.remove(&self.nav_submenu).unwrap();
-            self.screen_menus_visible.set(false);
+            self.screen_menu_visible.set(false);
         }
 
         // Add/remove media menu based on feature
         let media_visible = self.media_menu_visible.get();
-        // Position after: status, separator, [screen, nav]
-        let media_position = if self.screen_menus_visible.get() {
-            4
-        } else {
-            2
-        };
+        // Position after: status, separator, [screen]
+        let media_position = if self.screen_menu_visible.get() { 3 } else { 2 };
         if has_media && !media_visible {
             self.menu
                 .insert(&self.media_submenu, media_position)
@@ -132,7 +120,15 @@ impl MenuItems {
         }
 
         // Update screen checkmarks to show current default
-        let screen_items = [
+        // When reactive is active, uncheck all other screen positions
+        #[cfg(target_os = "linux")]
+        let reactive_active = state.reactive_active;
+        #[cfg(not(target_os = "linux"))]
+        let reactive_active = false;
+
+        let default_screen = &state.config.general.initial_screen;
+
+        let screen_items: &[(&CheckMenuItem, &str)] = &[
             (&self.screen_cpu, "cpu"),
             (&self.screen_gpu, "gpu"),
             (&self.screen_download, "download"),
@@ -145,10 +141,12 @@ impl MenuItems {
             (&self.screen_battery, "battery"),
         ];
 
-        let default_screen = &state.config.general.initial_screen;
         for (item, id) in screen_items {
-            item.set_checked(default_screen == id);
+            item.set_checked(!reactive_active && *default_screen == *id);
         }
+
+        #[cfg(target_os = "linux")]
+        self.screen_reactive.set_checked(reactive_active);
 
         // Update toggles from config
         self.toggle_weather
@@ -159,9 +157,6 @@ impl MenuItems {
             .set_checked(state.config.general.use_12hr_time);
         self.toggle_fahrenheit
             .set_checked(state.config.general.fahrenheit);
-        #[cfg(target_os = "linux")]
-        self.toggle_reactive
-            .set_checked(state.config.general.reactive_mode);
     }
 }
 
@@ -270,36 +265,24 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
     );
     screen_submenu.append(&screen_battery).unwrap();
 
+    // Reactive mode (Linux only)
+    #[cfg(target_os = "linux")]
+    let screen_reactive = {
+        screen_submenu
+            .append(&PredefinedMenuItem::separator())
+            .unwrap();
+        let item = CheckMenuItem::with_id(
+            ids::SCREEN_REACTIVE,
+            "Reactive",
+            true,
+            false,
+            None::<Accelerator>,
+        );
+        screen_submenu.append(&item).unwrap();
+        item
+    };
+
     // Don't append screen_submenu yet - added dynamically when connected
-
-    // Screen navigation submenu
-    let nav_submenu = Submenu::new("Screen Navigation", true);
-    nav_submenu
-        .append(&MenuItem::with_id(
-            ids::NAV_UP,
-            "Up",
-            true,
-            None::<Accelerator>,
-        ))
-        .unwrap();
-    nav_submenu
-        .append(&MenuItem::with_id(
-            ids::NAV_DOWN,
-            "Down",
-            true,
-            None::<Accelerator>,
-        ))
-        .unwrap();
-    nav_submenu
-        .append(&MenuItem::with_id(
-            ids::NAV_SWITCH,
-            "Switch",
-            true,
-            None::<Accelerator>,
-        ))
-        .unwrap();
-
-    // Don't append nav_submenu yet - added dynamically when connected
 
     // Media submenu
     let media_submenu = Submenu::new("Media", true);
@@ -385,19 +368,6 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
     menu.append(&toggle_12hr).unwrap();
     menu.append(&toggle_fahrenheit).unwrap();
 
-    #[cfg(target_os = "linux")]
-    let toggle_reactive = {
-        let toggle = CheckMenuItem::with_id(
-            ids::TOGGLE_REACTIVE,
-            "Reactive Mode",
-            true,
-            state.config.general.reactive_mode,
-            None::<Accelerator>,
-        );
-        menu.append(&toggle).unwrap();
-        toggle
-    };
-
     menu.append(&PredefinedMenuItem::separator()).unwrap();
 
     // Config options
@@ -448,9 +418,8 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
         menu,
         status,
         screen_submenu,
-        nav_submenu,
         media_submenu,
-        screen_menus_visible: std::cell::Cell::new(false),
+        screen_menu_visible: std::cell::Cell::new(false),
         media_menu_visible: std::cell::Cell::new(false),
         screen_cpu,
         screen_gpu,
@@ -462,12 +431,12 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
         screen_image,
         screen_gif,
         screen_battery,
+        #[cfg(target_os = "linux")]
+        screen_reactive,
         toggle_weather,
         toggle_system,
         toggle_12hr,
         toggle_fahrenheit,
-        #[cfg(target_os = "linux")]
-        toggle_reactive,
     }
 }
 
@@ -498,19 +467,14 @@ pub fn handle_menu_event(event: MenuEvent) -> MenuAction {
         ids::SCREEN_IMAGE => MenuAction::Command(TrayCommand::SetScreen("image")),
         ids::SCREEN_GIF => MenuAction::Command(TrayCommand::SetScreen("gif")),
         ids::SCREEN_BATTERY => MenuAction::Command(TrayCommand::SetScreen("battery")),
-
-        // Navigation
-        ids::NAV_UP => MenuAction::Command(TrayCommand::ScreenUp),
-        ids::NAV_DOWN => MenuAction::Command(TrayCommand::ScreenDown),
-        ids::NAV_SWITCH => MenuAction::Command(TrayCommand::ScreenSwitch),
+        #[cfg(target_os = "linux")]
+        ids::SCREEN_REACTIVE => MenuAction::Command(TrayCommand::SetScreen("reactive")),
 
         // Toggles
         ids::TOGGLE_WEATHER => MenuAction::Command(TrayCommand::ToggleWeather),
         ids::TOGGLE_SYSTEM => MenuAction::Command(TrayCommand::ToggleSystemInfo),
         ids::TOGGLE_12HR => MenuAction::Command(TrayCommand::Toggle12HrTime),
         ids::TOGGLE_FAHRENHEIT => MenuAction::Command(TrayCommand::ToggleFahrenheit),
-        #[cfg(target_os = "linux")]
-        ids::TOGGLE_REACTIVE => MenuAction::Command(TrayCommand::ToggleReactiveMode),
 
         // Media - file dialogs need async handling
         ids::UPLOAD_IMAGE => MenuAction::PickImage,

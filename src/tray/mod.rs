@@ -72,6 +72,7 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
         connection: ConnectionStatus::Disconnected,
         current_screen: None,
         config,
+        reactive_active: false,
     };
 
     // Load icon and build menu
@@ -240,6 +241,48 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                 ).await {
                     CommandResult::Quit => return Ok(()),
                     CommandResult::Continue => {}
+                    #[cfg(target_os = "linux")]
+                    CommandResult::ToggleReactive => {
+                        if state.reactive_active {
+                            // Disable reactive mode
+                            reactive_stream = None;
+                            is_reactive_running = false;
+                            state.reactive_active = false;
+                            // Restore to default screen
+                            state.config.general.initial_screen = "meletrix".into();
+                            let _ = state.config.save();
+                            println!("reactive mode disabled");
+                        } else if let Some(ref mut b) = board {
+                            // Enable reactive mode
+                            if let Some(screen) = b.as_screen() {
+                                let _ = screen.set_screen("image");
+                            }
+                            let board_name = b.info().name.to_lowercase();
+                            let search = format!("{board_name} keyboard");
+                            reactive_stream = evdev::enumerate().find_map(|(_, device)| {
+                                let name = device.name()?.to_string();
+                                let name_lower = name.to_lowercase();
+                                // Must contain board name + "keyboard" suffix
+                                if name_lower.contains(&search) {
+                                    device
+                                        .into_event_stream()
+                                        .map(|s| Box::pin(s.timeout(Duration::from_millis(500))))
+                                        .ok()
+                                } else {
+                                    None
+                                }
+                            });
+                            if reactive_stream.is_some() {
+                                state.reactive_active = true;
+                                state.config.general.initial_screen = "reactive".into();
+                                let _ = state.config.save();
+                                println!("reactive mode enabled");
+                            } else {
+                                eprintln!("reactive mode: no input device found (are you in the 'input' group?)");
+                            }
+                        }
+                        menu_items.update_from_state(&state, &mut board);
+                    }
                 }
             }
 
@@ -256,11 +299,47 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                             gpu = Some(Either::Left(GpuTemp::new(state.config.system_info.gpu_device)));
                         }
 
-                        // Set initial screen if configured
-                        if let Some(screen) = b.as_screen() {
-                            let initial = &state.config.general.initial_screen;
-                            if screen.set_screen(initial).is_ok() {
-                                state.current_screen = Some(initial.clone());
+                        // Initialize reactive mode if configured (Linux only)
+                        #[cfg(target_os = "linux")]
+                        if state.config.general.initial_screen == "reactive" {
+                            println!("initializing reactive mode");
+                            if let Some(screen) = b.as_screen() {
+                                let _ = screen.set_screen("image");
+                            }
+                            let board_name = b.info().name.to_lowercase();
+                            reactive_stream = evdev::enumerate().find_map(|(_, device)| {
+                                let name = device.name()?.to_string();
+                                let name_lower = name.to_lowercase();
+                                // Must contain board name + "keyboard" suffix
+                                if name_lower.contains(&format!("{board_name} keyboard")) {
+                                    device
+                                        .into_event_stream()
+                                        .map(|s| Box::pin(s.timeout(Duration::from_millis(500))))
+                                        .ok()
+                                } else {
+                                    None
+                                }
+                            });
+                            if reactive_stream.is_some() {
+                                state.reactive_active = true;
+                                println!("reactive mode enabled");
+                            } else {
+                                eprintln!("reactive mode: no input device found (are you in the 'input' group?)");
+                            }
+                        }
+
+                        // Set initial screen if configured (skip for reactive mode)
+                        #[cfg(target_os = "linux")]
+                        let skip_initial = state.config.general.initial_screen == "reactive";
+                        #[cfg(not(target_os = "linux"))]
+                        let skip_initial = false;
+
+                        if !skip_initial {
+                            if let Some(screen) = b.as_screen() {
+                                let initial = &state.config.general.initial_screen;
+                                if screen.set_screen(initial).is_ok() {
+                                    state.current_screen = Some(initial.clone());
+                                }
                             }
                         }
 
@@ -272,28 +351,6 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                         // Set up time interval for 12hr mode
                         if state.config.general.use_12hr_time {
                             time_interval = Some(create_hourly_interval());
-                        }
-
-                        // Initialize reactive mode (Linux only)
-                        #[cfg(target_os = "linux")]
-                        if state.config.general.reactive_mode {
-                            println!("initializing reactive mode");
-                            if let Some(screen) = b.as_screen() {
-                                let _ = screen.set_screen("image");
-                            }
-                            reactive_stream = evdev::enumerate().find_map(|(_, device)| {
-                                device
-                                    .name()
-                                    .unwrap()
-                                    .contains(b.info().name)
-                                    .then_some(
-                                        device
-                                            .into_event_stream()
-                                            .map(|s| Box::pin(s.timeout(Duration::from_millis(500))))
-                                            .ok(),
-                                    )
-                                    .flatten()
-                            });
                         }
 
                         // Set board, then update menu with features
@@ -396,6 +453,9 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
 enum CommandResult {
     Continue,
     Quit,
+    /// Toggle reactive mode on/off (Linux only)
+    #[cfg(target_os = "linux")]
+    ToggleReactive,
 }
 
 async fn handle_command(
@@ -411,6 +471,12 @@ async fn handle_command(
         TrayCommand::Quit => return CommandResult::Quit,
 
         TrayCommand::SetScreen(id) => {
+            // Handle reactive mode specially (Linux only)
+            #[cfg(target_os = "linux")]
+            if id == "reactive" {
+                return CommandResult::ToggleReactive;
+            }
+
             if let Some(ref mut b) = board {
                 if let Some(screen) = b.as_screen() {
                     match screen.set_screen(id) {
@@ -423,39 +489,6 @@ async fn handle_command(
                             println!("set screen to {id}");
                         },
                         Err(e) => eprintln!("failed to set screen: {e}"),
-                    }
-                }
-            }
-        },
-        TrayCommand::ScreenUp => {
-            if let Some(ref mut b) = board {
-                if let Some(screen) = b.as_screen() {
-                    if let Err(e) = screen.screen_up() {
-                        eprintln!("screen up failed: {e}");
-                    } else {
-                        println!("screen up");
-                    }
-                }
-            }
-        },
-        TrayCommand::ScreenDown => {
-            if let Some(ref mut b) = board {
-                if let Some(screen) = b.as_screen() {
-                    if let Err(e) = screen.screen_down() {
-                        eprintln!("screen down failed: {e}");
-                    } else {
-                        println!("screen down");
-                    }
-                }
-            }
-        },
-        TrayCommand::ScreenSwitch => {
-            if let Some(ref mut b) = board {
-                if let Some(screen) = b.as_screen() {
-                    if let Err(e) = screen.screen_switch() {
-                        eprintln!("screen switch failed: {e}");
-                    } else {
-                        println!("screen switch");
                     }
                 }
             }
@@ -517,15 +550,6 @@ async fn handle_command(
                     }
                 }
             }
-        },
-        TrayCommand::ToggleReactiveMode => {
-            state.config.general.reactive_mode = !state.config.general.reactive_mode;
-            let _ = state.config.save();
-            menu_items.update_from_state(state, board);
-            println!(
-                "reactive mode: {} (restart required)",
-                state.config.general.reactive_mode
-            );
         },
 
         TrayCommand::UploadImage(encoded) => {

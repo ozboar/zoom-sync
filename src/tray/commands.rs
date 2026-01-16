@@ -7,12 +7,6 @@ use crate::config::Config;
 pub enum TrayCommand {
     /// Set screen to specific position (by ID) and save as default
     SetScreen(&'static str),
-    /// Move screen up
-    ScreenUp,
-    /// Move screen down
-    ScreenDown,
-    /// Switch screen offset
-    ScreenSwitch,
     /// Toggle weather updates
     ToggleWeather,
     /// Toggle system info updates
@@ -21,8 +15,6 @@ pub enum TrayCommand {
     Toggle12HrTime,
     /// Toggle fahrenheit/celsius
     ToggleFahrenheit,
-    /// Toggle reactive mode (Linux only)
-    ToggleReactiveMode,
     /// Upload pre-encoded image data
     UploadImage(Vec<u8>),
     /// Upload pre-encoded GIF data
@@ -64,4 +56,6 @@ pub struct TrayState {
     pub connection: ConnectionStatus,
     pub current_screen: Option<String>,
     pub config: Config,
+    /// Whether reactive mode is currently active (Linux only)
+    pub reactive_active: bool,
 }
