@@ -5,6 +5,7 @@ use std::str::FromStr;
 use bpaf::Bpaf;
 use hidapi::HidApi;
 use zoom65v3::{Zoom65v3, INFO as ZOOM65V3_INFO};
+use zoom75_tiga::{Zoom75Tiga, INFO as ZOOM75_TIGA_INFO};
 use zoom_tkl_dyna::{ZoomTklDyna, INFO as ZOOM_TKL_DYNA_INFO};
 use zoom_sync_core::{Board, BoardError, BoardInfo, Capabilities};
 
@@ -19,6 +20,9 @@ pub enum BoardKind {
     Zoom65v3,
     /// Zoom TKL Dyna
     ZoomTklDyna,
+    /// Zoom75 Tiga
+    #[bpaf(long("zoom75-tiga"))]
+    Zoom75Tiga,
 }
 
 impl FromStr for BoardKind {
@@ -29,8 +33,9 @@ impl FromStr for BoardKind {
             "auto" => Ok(Self::Auto),
             "zoom65v3" => Ok(Self::Zoom65v3),
             "zoom-tkl-dyna" | "zoomtkldyna" => Ok(Self::ZoomTklDyna),
+            "zoom75-tiga" | "zoom75tiga" => Ok(Self::Zoom75Tiga),
             _ => Err(format!(
-                "unknown board: {s}. Available: auto, zoom65v3, zoom-tkl-dyna"
+                "unknown board: {s}. Available: auto, zoom65v3, zoom-tkl-dyna, zoom75-tiga"
             )),
         }
     }
@@ -42,6 +47,7 @@ impl std::fmt::Display for BoardKind {
             Self::Auto => write!(f, "auto"),
             Self::Zoom65v3 => write!(f, "zoom65v3"),
             Self::ZoomTklDyna => write!(f, "zoom-tkl-dyna"),
+            Self::Zoom75Tiga => write!(f, "zoom75-tiga"),
         }
     }
 }
@@ -56,7 +62,7 @@ fn matches(device: &hidapi::DeviceInfo, info: &BoardInfo) -> bool {
 
 /// All known board infos for iteration
 #[allow(dead_code)]
-pub const ALL_BOARDS: &[&BoardInfo] = &[&ZOOM65V3_INFO, &ZOOM_TKL_DYNA_INFO];
+pub const ALL_BOARDS: &[&BoardInfo] = &[&ZOOM65V3_INFO, &ZOOM_TKL_DYNA_INFO, &ZOOM75_TIGA_INFO];
 
 impl BoardKind {
     /// Get the static board info without connecting
@@ -65,6 +71,7 @@ impl BoardKind {
             BoardKind::Auto => None,
             BoardKind::Zoom65v3 => Some(&ZOOM65V3_INFO),
             BoardKind::ZoomTklDyna => Some(&ZOOM_TKL_DYNA_INFO),
+            BoardKind::Zoom75Tiga => Some(&ZOOM75_TIGA_INFO),
         }
     }
 
@@ -115,6 +122,7 @@ impl BoardKind {
                 // Single HID iteration, check each board's INFO
                 // Note: Zoom65v3 is checked first because it has more specific matching
                 // (vendor_id + product_id), while ZoomTklDyna only uses usage_page + usage
+                // Note: Zoom75Tiga is not auto-detected until vendor/product IDs are configured
                 let api = HidApi::new()?;
                 for device in api.device_list() {
                     if matches(device, &ZOOM65V3_INFO) {
@@ -128,12 +136,13 @@ impl BoardKind {
             },
             BoardKind::Zoom65v3 => Ok(Box::new(Zoom65v3::open()?)),
             BoardKind::ZoomTklDyna => Ok(Box::new(ZoomTklDyna::open()?)),
+            BoardKind::Zoom75Tiga => Ok(Box::new(Zoom75Tiga::open()?)),
         }
     }
 
     /// List all supported board CLI names
     #[allow(dead_code)]
     pub fn supported_boards() -> &'static [&'static str] {
-        &["auto", "zoom65v3", "zoom-tkl-dyna"]
+        &["auto", "zoom65v3", "zoom-tkl-dyna", "zoom75-tiga"]
     }
 }

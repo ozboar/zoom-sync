@@ -1,0 +1,13 @@
+[package]
+name = "zoom-tiga-protocol"
+version = "0.1.0"
+description = "Shared HID protocol implementation for Zoom Tiga-based keyboards"
+repository = "https://github.com/ozwaldorf/zoom-sync"
+authors = [ "ozwaldorf <self@ossian.dev>" ]
+license = "MIT"
+edition = "2021"
+
+[dependencies]
+image = "0.25.5"
+rayon = "1.10.0"
+rgb565 = "0.1.3"

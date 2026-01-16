@@ -1,6 +1,6 @@
-//! High level hidapi abstraction for interacting with Zoom TKL Dyna screen modules.
+//! High level hidapi abstraction for interacting with Zoom75 Tiga screen modules.
 //!
-//! This crate provides reverse-engineered bindings to control the Zoom TKL Dyna keyboard's
+//! This crate provides reverse-engineered bindings to control the Zoom75 Tiga keyboard's
 //! built-in display via HID. The protocol uses CRC-16/CCITT-FALSE checksums with a 32-byte
 //! packet structure.
 //!
@@ -19,22 +19,22 @@ use zoom_tiga_protocol::{encode_gif, encode_temperature, Rgb565, ScreenMode, Wea
 pub use zoom_tiga_protocol::{self as protocol, SCREEN_HEIGHT, SCREEN_WIDTH};
 
 pub mod consts {
-    /// USB Vendor ID
-    pub const VENDOR_ID: u16 = 0x5542;
-    /// USB Product ID
-    pub const PRODUCT_ID: u16 = 0xC987;
-    /// HID usage page for the Zoom TKL Dyna screen interface
+    /// USB Vendor ID (TODO: fill in when known)
+    pub const VENDOR_ID: u16 = 0;
+    /// USB Product ID (TODO: fill in when known)
+    pub const PRODUCT_ID: u16 = 0;
+    /// HID usage page for the Zoom75 Tiga screen interface
     pub const USAGE_PAGE: u16 = 65376;
-    /// HID usage for the Zoom TKL Dyna screen interface
+    /// HID usage for the Zoom75 Tiga screen interface
     pub const USAGE: u16 = 97;
 }
 
 /// Static board info for detection
 pub static INFO: BoardInfo = BoardInfo {
-    name: "Zoom TKL Dyna",
-    cli_name: "zoom-tkl-dyna",
-    vendor_id: Some(consts::VENDOR_ID),
-    product_id: Some(consts::PRODUCT_ID),
+    name: "Zoom75 Tiga",
+    cli_name: "zoom75-tiga",
+    vendor_id: None,
+    product_id: None,
     usage_page: Some(consts::USAGE_PAGE),
     usage: Some(consts::USAGE),
     capabilities: Capabilities {
@@ -52,14 +52,17 @@ pub static INFO: BoardInfo = BoardInfo {
 static API: LazyLock<RwLock<HidApi>> =
     LazyLock::new(|| RwLock::new(HidApi::new().expect("failed to init hidapi")));
 
-/// High level abstraction for managing a Zoom TKL Dyna keyboard
-pub struct ZoomTklDyna {
+/// High level abstraction for managing a Zoom75 Tiga keyboard
+pub struct Zoom75Tiga {
     pub device: HidDevice,
     buf: [u8; 64],
 }
 
-impl ZoomTklDyna {
-    /// Find and open the device for modifications
+impl Zoom75Tiga {
+    /// Find and open the device for modifications.
+    ///
+    /// NOTE: This will open any zoom device due to shared usages. Vendor and product IDs are
+    ///       required for proper board detection.
     pub fn open() -> Result<Self> {
         API.write().unwrap().refresh_devices()?;
         let api = API.read().unwrap();
@@ -67,10 +70,9 @@ impl ZoomTklDyna {
             device: api
                 .device_list()
                 .find(|d| {
-                    d.vendor_id() == consts::VENDOR_ID
-                        && d.product_id() == consts::PRODUCT_ID
-                        && d.usage_page() == consts::USAGE_PAGE
-                        && d.usage() == consts::USAGE
+                    // d.vendor_id() == consts::VENDOR_ID &&
+                    // d.product_id() == consts::PRODUCT_ID &&
+                    d.usage_page() == consts::USAGE_PAGE && d.usage() == consts::USAGE
                 })
                 .ok_or(BoardError::DeviceNotFound)?
                 .open_device(&api)?,
@@ -196,7 +198,7 @@ impl ZoomTklDyna {
 
 // === Trait Implementations ===
 
-impl Board for ZoomTklDyna {
+impl Board for Zoom75Tiga {
     fn info(&self) -> &'static BoardInfo {
         &INFO
     }
@@ -226,14 +228,14 @@ impl Board for ZoomTklDyna {
     }
 }
 
-impl HasTime for ZoomTklDyna {
+impl HasTime for Zoom75Tiga {
     fn set_time(&mut self, time: DateTime<Local>, _use_12hr: bool) -> Result<()> {
-        // Note: The TKL Dyna uses 24-hour format internally, so we ignore _use_12hr
-        ZoomTklDyna::set_time(self, time)
+        // Note: The Zoom75 Tiga uses 24-hour format internally, so we ignore _use_12hr
+        Zoom75Tiga::set_time(self, time)
     }
 }
 
-impl HasWeather for ZoomTklDyna {
+impl HasWeather for Zoom75Tiga {
     fn set_weather(
         &mut self,
         wmo: u8,
@@ -244,13 +246,13 @@ impl HasWeather for ZoomTklDyna {
     ) -> Result<()> {
         let icon = WeatherIcon::from_wmo(wmo, is_day)
             .ok_or(BoardError::CommandFailed("unknown WMO code"))?;
-        ZoomTklDyna::set_weather(self, icon, current, low, high)
+        Zoom75Tiga::set_weather(self, icon, current, low, high)
     }
 }
 
-impl HasImage for ZoomTklDyna {
+impl HasImage for Zoom75Tiga {
     fn upload_image(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()> {
-        ZoomTklDyna::upload_image(self, data, progress)
+        Zoom75Tiga::upload_image(self, data, progress)
     }
 
     fn clear_image(&mut self) -> Result<()> {
@@ -260,13 +262,13 @@ impl HasImage for ZoomTklDyna {
     }
 }
 
-impl HasTheme for ZoomTklDyna {
+impl HasTheme for Zoom75Tiga {
     fn set_theme(&mut self, bg_color: u16, font_color: u16, theme_id: u8) -> Result<()> {
-        ZoomTklDyna::set_theme(self, Rgb565(bg_color), Rgb565(font_color), theme_id)
+        Zoom75Tiga::set_theme(self, Rgb565(bg_color), Rgb565(font_color), theme_id)
     }
 }
 
-impl HasGif for ZoomTklDyna {
+impl HasGif for Zoom75Tiga {
     fn upload_gif(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()> {
         // Re-encode standard GIF to RGB565 format
         let encoded = encode_gif(data, [0, 0, 0], false, |_, _| {})
@@ -275,6 +277,6 @@ impl HasGif for ZoomTklDyna {
     }
 
     fn clear_gif(&mut self) -> Result<()> {
-        ZoomTklDyna::clear_gif(self)
+        Zoom75Tiga::clear_gif(self)
     }
 }
