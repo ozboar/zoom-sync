@@ -27,6 +27,7 @@
           fixupPhase = ''addDriverRunpath $out/bin/zoom-sync'';
         }
       ) { };
+
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
           rustfmt
@@ -39,5 +40,52 @@
           pkgs.libayatana-appindicator
         ];
       };
+
+      nixosModules.default =
+        { config, lib, pkgs, ... }:
+        let
+          cfg = config.services.zoom-sync;
+        in
+        {
+          options.services.zoom-sync = {
+            enable = lib.mkEnableOption "zoom-sync keyboard screen sync service";
+
+            package = lib.mkPackageOption self.packages.${system} "default" { };
+
+            user = lib.mkOption {
+              type = lib.types.str;
+              description = "User to run zoom-sync and add to input group for reactive mode.";
+            };
+
+            extraArgs = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              default = [ ];
+              example = [ "--screen" "weather" "--no-system" ];
+              description = "Extra arguments to pass to zoom-sync.";
+            };
+          };
+
+          config = lib.mkIf cfg.enable {
+            # Udev rule for accessing the Zoom65 v3 keyboard without root
+            services.udev.extraRules = ''
+              SUBSYSTEM=="usb", ATTR{idVendor}=="35ef", MODE="0666"
+            '';
+
+            # Add user to input group for reactive mode (evdev access)
+            users.users.${cfg.user}.extraGroups = lib.mkIf pkgs.stdenv.isLinux [ "input" ];
+
+            systemd.user.services.zoom-sync = {
+              description = "Screen module sync for Zoom65 v3 keyboards";
+              wantedBy = [ "graphical-session.target" ];
+              partOf = [ "graphical-session.target" ];
+              after = [ "graphical-session.target" ];
+              serviceConfig = {
+                ExecStart = "${cfg.package}/bin/zoom-sync ${lib.escapeShellArgs cfg.extraArgs}";
+                Restart = "on-failure";
+                RestartSec = 5;
+              };
+            };
+          };
+        };
     };
 }
