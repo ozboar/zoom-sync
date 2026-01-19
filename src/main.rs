@@ -126,6 +126,7 @@ fn set_command_for(caps: &Capabilities) -> impl Parser<SetCommand> {
         let screen = screen_args()
             .map(SetCommand::Screen)
             .to_options()
+            .fallback_to_usage()
             .descr("Change current screen")
             .command("screen")
             .help("Change current screen");
@@ -162,6 +163,7 @@ fn set_command_for(caps: &Capabilities) -> impl Parser<SetCommand> {
         let image = set_media_args()
             .map(SetCommand::Image)
             .to_options()
+            .fallback_to_usage()
             .descr("Upload static image")
             .command("image")
             .help("Upload static image");
@@ -172,6 +174,7 @@ fn set_command_for(caps: &Capabilities) -> impl Parser<SetCommand> {
         let gif = set_media_args()
             .map(SetCommand::Gif)
             .to_options()
+            .fallback_to_usage()
             .descr("Upload animated image (gif/webp/apng)")
             .command("gif")
             .help("Upload animated image (gif/webp/apng)");
@@ -273,6 +276,7 @@ fn command_for(caps: &Capabilities, board_note: &str) -> impl Parser<Command> {
     let set = set_command_for(caps)
         .map(|set_command| Command::Set { set_command })
         .to_options()
+        .fallback_to_usage()
         .descr("Set specific options on the keyboard")
         .header(board_note)
         .command("set")
