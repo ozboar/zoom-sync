@@ -11,21 +11,21 @@ use std::sync::{LazyLock, RwLock};
 use chrono::{DateTime, Datelike, Local, TimeZone, Timelike};
 use hidapi::{HidApi, HidDevice};
 use zoom_sync_core::{
-    Board, BoardError, BoardInfo, Capabilities, HasGif, HasImage, HasTheme, HasTime, HasWeather,
-    Result,
+    Board, BoardError, BoardInfo, Capabilities, HasGif, HasImage, HasScreenNavigation, HasTheme,
+    HasTime, HasWeather, Result,
 };
 use zoom_tiga_protocol::{encode_gif, encode_temperature, Rgb565, ScreenMode, WeatherIcon};
 
 pub use zoom_tiga_protocol::{self as protocol, SCREEN_HEIGHT, SCREEN_WIDTH};
 
 pub mod consts {
-    /// USB Vendor ID (TODO: fill in when known)
-    pub const VENDOR_ID: u16 = 0;
-    /// USB Product ID (TODO: fill in when known)
-    pub const PRODUCT_ID: u16 = 0;
-    /// HID usage page for the Zoom75 Tiga screen interface
+    /// USB Vendor ID
+    pub const VENDOR_ID: u16 = 0x1EA7;
+    /// USB Product ID
+    pub const PRODUCT_ID: u16 = 0xCEDD;
+    /// HID usage page
     pub const USAGE_PAGE: u16 = 65376;
-    /// HID usage for the Zoom75 Tiga screen interface
+    /// HID usage
     pub const USAGE: u16 = 97;
 }
 
@@ -33,8 +33,8 @@ pub mod consts {
 pub static INFO: BoardInfo = BoardInfo {
     name: "Zoom75 Tiga",
     cli_name: "zoom75-tiga",
-    vendor_id: None,
-    product_id: None,
+    vendor_id: Some(consts::VENDOR_ID),
+    product_id: Some(consts::PRODUCT_ID),
     usage_page: Some(consts::USAGE_PAGE),
     usage: Some(consts::USAGE),
     capabilities: Capabilities {
@@ -43,7 +43,8 @@ pub static INFO: BoardInfo = BoardInfo {
         weather: true,
         image: true,
         system_info: false,
-        screen: false,
+        screen_pos: false,
+        screen_nav: true,
         gif: true,
     },
 };
@@ -278,5 +279,23 @@ impl HasGif for Zoom75Tiga {
 
     fn clear_gif(&mut self) -> Result<()> {
         Zoom75Tiga::clear_gif(self)
+    }
+}
+
+impl HasScreenNavigation for Zoom75Tiga {
+    fn screen_up(&mut self) -> Result<()> {
+        self.screen_up()
+    }
+
+    fn screen_down(&mut self) -> Result<()> {
+        self.screen_down()
+    }
+
+    fn screen_switch(&mut self) -> Result<()> {
+        self.screen_enter()
+    }
+
+    fn screen_reset(&mut self) -> Result<()> {
+        self.screen_return()
     }
 }
