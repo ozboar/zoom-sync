@@ -283,7 +283,7 @@ impl HasImage for ZoomTklDyna {
 
     fn clear_image(&mut self) -> Result<()> {
         // Send empty termination to clear
-        let packet = abi::image_end();
+        let packet = protocol::image_end();
         self.execute(packet)
     }
 }
