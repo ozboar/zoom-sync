@@ -1,7 +1,5 @@
 //! Board detection and selection logic.
 
-use std::str::FromStr;
-
 use bpaf::Bpaf;
 use hidapi::HidApi;
 use zoom65v3::{Zoom65v3, INFO as ZOOM65V3_INFO};
@@ -25,33 +23,6 @@ pub enum BoardKind {
     Zoom75Tiga,
 }
 
-impl FromStr for BoardKind {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "auto" => Ok(Self::Auto),
-            "zoom65v3" | "65v3" => Ok(Self::Zoom65v3),
-            "zoom-tkl-dyna" | "zoomtkldyna" => Ok(Self::ZoomTklDyna),
-            "zoom75-tiga" | "zoom75tiga" => Ok(Self::Zoom75Tiga),
-            _ => Err(format!(
-                "unknown board: {s}. Available: auto, zoom65v3, zoom-tkl-dyna, zoom75-tiga"
-            )),
-        }
-    }
-}
-
-impl std::fmt::Display for BoardKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Auto => write!(f, "auto"),
-            Self::Zoom65v3 => write!(f, "zoom65v3"),
-            Self::ZoomTklDyna => write!(f, "zoom-tkl-dyna"),
-            Self::Zoom75Tiga => write!(f, "zoom75-tiga"),
-        }
-    }
-}
-
 /// Check if a HID device matches the board info
 fn matches(device: &hidapi::DeviceInfo, info: &BoardInfo) -> bool {
     info.vendor_id.is_none_or(|vid| device.vendor_id() == vid)
@@ -62,7 +33,7 @@ fn matches(device: &hidapi::DeviceInfo, info: &BoardInfo) -> bool {
 
 impl BoardKind {
     /// Get the static board info without connecting
-    pub fn info(&self) -> Option<&'static BoardInfo> {
+    pub const fn info(&self) -> Option<&'static BoardInfo> {
         match self {
             BoardKind::Auto => None,
             BoardKind::Zoom65v3 => Some(&ZOOM65V3_INFO),
@@ -80,6 +51,9 @@ impl BoardKind {
             }
             if matches(device, &ZOOM_TKL_DYNA_INFO) {
                 return Some(BoardKind::ZoomTklDyna);
+            }
+            if matches(device, &ZOOM75_TIGA_INFO) {
+                return Some(BoardKind::Zoom75Tiga);
             }
         }
         None
@@ -112,28 +86,19 @@ impl BoardKind {
         }
     }
 
-    /// Open the specified board, or auto-detect if Auto
-    pub fn as_board(&self) -> Result<Box<dyn Board>, BoardError> {
+    /// Open the specified board. Errors on BoardKind::Auto
+    pub fn as_board(self) -> Result<Box<dyn Board>, BoardError> {
         match self {
-            BoardKind::Auto => {
-                // Single HID iteration, check each board's INFO
-                // Note: Zoom65v3 is checked first because it has more specific matching
-                // (vendor_id + product_id), while ZoomTklDyna only uses usage_page + usage
-                // Note: Zoom75Tiga is not auto-detected until vendor/product IDs are configured
-                let api = HidApi::new()?;
-                for device in api.device_list() {
-                    if matches(device, &ZOOM65V3_INFO) {
-                        return Ok(Box::new(Zoom65v3::open()?));
-                    }
-                    if matches(device, &ZOOM_TKL_DYNA_INFO) {
-                        return Ok(Box::new(ZoomTklDyna::open()?));
-                    }
-                }
-                Err(BoardError::DeviceNotFound)
-            },
             BoardKind::Zoom65v3 => Ok(Box::new(Zoom65v3::open()?)),
             BoardKind::ZoomTklDyna => Ok(Box::new(ZoomTklDyna::open()?)),
             BoardKind::Zoom75Tiga => Ok(Box::new(Zoom75Tiga::open()?)),
+            BoardKind::Auto => {
+                if let Some(detected) = Self::detect() {
+                    detected.as_board()
+                } else {
+                    Err(BoardError::DeviceNotFound)
+                }
+            },
         }
     }
 }
