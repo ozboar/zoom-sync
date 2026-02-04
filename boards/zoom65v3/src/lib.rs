@@ -194,11 +194,12 @@ impl Zoom65v3 {
     pub fn set_system_info(
         &mut self,
         cpu_temp: u8,
-        gpu_temp: u8,
+        gpu_temp: u32,
         download_rate: f32,
     ) -> Result<()> {
         let download = DumbFloat16::new(download_rate);
-        let res = self.execute(abi::set_system_info(cpu_temp, gpu_temp, download))?;
+        let gpu_temp_cast: [u8; 4] = gpu_temp.to_be_bytes();
+        let res = self.execute(abi::set_system_info(cpu_temp, gpu_temp_cast[3], download))?;
         (res[1] == 1 && res[2] == 1)
             .then_some(())
             .ok_or(BoardError::CommandFailed("device rejected command"))
@@ -379,8 +380,9 @@ impl HasWeather for Zoom65v3 {
     }
 }
 
+// fan speed (the 4th arg for sysinfo) not supported on zoom65v3, thus not included.
 impl HasSystemInfo for Zoom65v3 {
-    fn set_system_info(&mut self, cpu: u8, gpu: u8, download: f32) -> Result<()> {
+    fn set_system_info(&mut self, cpu: u8, gpu: u32, download: f32, _: u32) -> Result<()> {
         Zoom65v3::set_system_info(self, cpu, gpu, download)
     }
 }

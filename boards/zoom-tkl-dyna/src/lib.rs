@@ -17,8 +17,7 @@ use image::AnimationDecoder;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use types::{encode_temperature, Rgb565, ScreenMode, WeatherIcon};
 use zoom_sync_core::{
-    Board, BoardError, BoardInfo, Capabilities, HasGif, HasImage, HasScreenNavigation, HasTheme,
-    HasTime, HasWeather, Result,
+    Board, BoardError, BoardInfo, Capabilities, HasGif, HasImage, HasScreenNavigation, HasSystemInfo, HasTheme, HasTime, HasWeather, Result
 };
 
 pub mod abi;
@@ -49,7 +48,7 @@ pub static INFO: BoardInfo = BoardInfo {
         time: true,
         weather: true,
         image: true,
-        system_info: false,
+        system_info: true,
         screen_pos: false,
         screen_nav: true,
         gif: true,
@@ -214,6 +213,25 @@ impl ZoomTklDyna {
         );
         self.execute(packet)
     }
+    
+    /// Update the system info display
+    pub fn set_system_info(
+        &mut self,
+        cpu_temp: u8,
+        gpu_temp: u32,
+        download_rate: f32,
+        gpu_fan_speed: u32,
+    ) -> Result<()> {
+
+        let mut gpu_fan_speed_adjusted = gpu_fan_speed;
+        if gpu_fan_speed >= 10000 {
+            eprintln!("warning: actual fan speed at {gpu_fan_speed}. clamping to 9999");
+            gpu_fan_speed_adjusted = 9999;
+        }
+
+        let packet = abi::set_system_info(cpu_temp, gpu_temp, download_rate, gpu_fan_speed_adjusted);
+        self.execute(packet)
+    }
 
     /// Set the screen theme colors.
     /// For TKL Dyna, this sets the reactive typing color themeing built into the screen.
@@ -325,6 +343,10 @@ impl Board for ZoomTklDyna {
     fn as_weather(&mut self) -> Option<&mut dyn HasWeather> {
         Some(self)
     }
+
+    fn as_system_info(&mut self) -> Option<&mut dyn HasSystemInfo> {
+        Some(self)
+    }
 }
 
 impl HasTheme for ZoomTklDyna {
@@ -392,5 +414,11 @@ impl HasWeather for ZoomTklDyna {
         let icon = WeatherIcon::from_wmo(wmo, is_day)
             .ok_or(BoardError::CommandFailed("unknown WMO code"))?;
         ZoomTklDyna::set_weather(self, icon, current, low, high)
+    }
+}
+
+impl HasSystemInfo for  ZoomTklDyna {
+    fn set_system_info(&mut self, cpu: u8, gpu: u32, download: f32, fan_rpm: u32) -> Result<()> {
+        ZoomTklDyna::set_system_info(self, cpu, gpu, download, fan_rpm)
     }
 }

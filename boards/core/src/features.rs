@@ -60,9 +60,9 @@ pub trait HasWeather {
     ) -> Result<()>;
 }
 
-/// System info display capability (CPU temp, GPU temp, download speed)
+/// System info display capability (CPU temp, GPU temp, download speed, fan speed (currently set to GPU fans w/gpu driver))
 pub trait HasSystemInfo {
-    fn set_system_info(&mut self, cpu: u8, gpu: u8, download: f32) -> Result<()>;
+    fn set_system_info(&mut self, cpu: u8, gpu: u32, download: f32, fan_rpm: u32) -> Result<()>;
 }
 
 /// Screen position control capability

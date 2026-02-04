@@ -24,7 +24,7 @@ use zoom_sync_core::Board;
 
 use crate::config::Config;
 use crate::detection::BoardKind;
-use crate::info::{apply_system, CpuTemp, GpuTemp};
+use crate::info::{apply_system, CpuTemp, GpuStats};
 use crate::media::{encode_gif, encode_image};
 use crate::weather::apply_weather;
 
@@ -122,7 +122,7 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
 
     // Temperature monitors (initialized when board connects)
     let mut cpu: Option<Either<CpuTemp, u8>> = None;
-    let mut gpu: Option<Either<GpuTemp, u8>> = None;
+    let mut gpu: Option<Either<GpuStats, (u32, u32)>> = None;
 
     // Weather args
     let mut weather_args = build_weather_args(&state.config);
@@ -321,7 +321,7 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                         // Initialize temperature monitors
                         if state.config.system_info.enabled {
                             cpu = Some(Either::Left(CpuTemp::new(&state.config.system_info.cpu_source)));
-                            gpu = Some(Either::Left(GpuTemp::new(state.config.system_info.gpu_device)));
+                            gpu = Some(Either::Left(GpuStats::new(state.config.system_info.gpu_device)));
                         }
 
                         // Initialize reactive mode if configured (Linux only)
@@ -492,7 +492,7 @@ async fn handle_command(
     state: &mut TrayState,
     menu_items: &menu::MenuItems,
     cpu: &mut Option<Either<CpuTemp, u8>>,
-    gpu: &mut Option<Either<GpuTemp, u8>>,
+    gpu: &mut Option<Either<GpuStats, (u32, u32)>>,
     weather_args: &mut crate::weather::WeatherArgs,
 ) -> CommandResult {
     match cmd {
@@ -535,7 +535,7 @@ async fn handle_command(
                 *cpu = Some(Either::Left(CpuTemp::new(
                     &state.config.system_info.cpu_source,
                 )));
-                *gpu = Some(Either::Left(GpuTemp::new(
+                *gpu = Some(Either::Left(GpuStats::new(
                     state.config.system_info.gpu_device,
                 )));
             }

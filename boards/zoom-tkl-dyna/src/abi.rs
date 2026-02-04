@@ -28,6 +28,8 @@ pub mod cmd {
     pub const THEME: u8 = 0xFD;
     /// Weather display command
     pub const WEATHER: u8 = 0xFE;
+    /// Sysinfo Command
+    pub const SYSINFO: u8 = 0xFF;
 }
 
 /// Build a 32-byte HID packet with proper framing, checksums, and CRC.
@@ -52,7 +54,6 @@ pub fn build_packet(command: u8, payload: &[u8], sub_type: u8) -> [u8; 32] {
             packet[12 + i] = byte;
         }
     }
-    println!("payload: {:?}", &payload);
 
     // Calculate checksum (sum of bytes 9+ XOR 0xFF)
     let mut checksum: u16 = 0;
@@ -81,7 +82,6 @@ pub fn build_packet(command: u8, payload: &[u8], sub_type: u8) -> [u8; 32] {
     let mut full_packet: [u8; 32] = [0u8; 32];
     full_packet[0] = 0x0;
     full_packet[1..32].copy_from_slice(&packet[..31]);
-    println!("packet: {:?}", &full_packet);
     full_packet
 }
 
@@ -177,4 +177,37 @@ pub fn image_chunk(page_index: u16, chunk: &[u8]) -> [u8; 32] {
 pub fn image_end() -> [u8; 32] {
     let payload = [0x00, 0xFF, 0xFF];
     build_packet(cmd::IMAGE, &payload, 0x02)
+}
+
+/// Build a sysinfo data packet
+///
+/// Payload structure (12 bytes):
+/// - Byte 0: Unknown flag (0x00)
+/// - Byte 1-2: CPU Temp (big-endian)
+/// - Bytes 3-4: GPU Temp (big-endian)
+/// - Byte 5-6: Unknown Identifier, I speculated that it might SSD Temp looking at 
+///             the payload at one point but it doesn't display on screen anywhere.
+/// - Byte 7-8: Fan RPM (big-endian)
+/// - Byte 9-10: Download Speed (big-endian)
+/// - Byte 11: 0xFF, (magic identifier)
+pub fn set_system_info(cpu_temp: u8, gpu_temp: u32, download: f32, fan_rpm: u32 ) -> [u8; 32] {
+    let gpu_temp_bytes: [u8; 4] = gpu_temp.to_be_bytes();
+    let download_bytes: [u8; 4] = ((download * 10.0) as u32).to_be_bytes();
+    let fan_rpm_bytes: [u8; 4] = fan_rpm.to_be_bytes();
+    // data length should be 11
+    let payload = [
+        0x00,
+        0x00, // if this is ever >= 1, your cpu might be on fire
+        cpu_temp,
+        gpu_temp_bytes[2], // if this is ever >= 1, your gpu might be on fire
+        gpu_temp_bytes[3],
+        0x00,
+        0x00, // unsure what this value is, believe it might be a random thermal identifier not shown on screen.
+        fan_rpm_bytes[2],
+        fan_rpm_bytes[3],
+        download_bytes[2],
+        download_bytes[3],
+        0xFF
+    ];
+    build_packet(cmd::SYSINFO, &payload, 0x02)
 }
