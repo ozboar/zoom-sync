@@ -1,6 +1,6 @@
-//! High level hidapi abstraction for interacting with Zoom TKL Dyna screen modules.
+//! High level hidapi abstraction for interacting with Zoom75 Tiga screen modules.
 //!
-//! This crate provides reverse-engineered bindings to control the Zoom TKL Dyna keyboard's
+//! This crate provides reverse-engineered bindings to control the Zoom75 Tiga keyboard's
 //! built-in display via HID. The protocol uses CRC-16/CCITT-FALSE checksums with a 32-byte
 //! packet structure.
 //!
@@ -11,8 +11,8 @@ use std::sync::{LazyLock, RwLock};
 use chrono::{DateTime, Datelike, Local, TimeZone, Timelike};
 use hidapi::{HidApi, HidDevice};
 use zoom_sync_core::{
-    Board, BoardError, BoardInfo, Capabilities, HasGif, HasImage, HasScreenNavigation,
-    HasSystemInfo, HasTheme, HasTime, HasWeather, Result,
+    Board, BoardError, BoardInfo, Capabilities, HasGif, HasImage, HasScreenNavigation, HasTheme,
+    HasTime, HasWeather, Result,
 };
 use zoom_tiga_protocol::{encode_gif, encode_temperature, Rgb565, ScreenMode, WeatherIcon};
 
@@ -20,9 +20,9 @@ pub use zoom_tiga_protocol::{self as protocol, SCREEN_HEIGHT, SCREEN_WIDTH};
 
 pub mod consts {
     /// USB Vendor ID
-    pub const VENDOR_ID: u16 = 0x5542;
+    pub const VENDOR_ID: u16 = 0x1EA7;
     /// USB Product ID
-    pub const PRODUCT_ID: u16 = 0xC987;
+    pub const PRODUCT_ID: u16 = 0xCEDD;
     /// HID usage page
     pub const USAGE_PAGE: u16 = 65376;
     /// HID usage
@@ -31,8 +31,8 @@ pub mod consts {
 
 /// Static board info for detection
 pub static INFO: BoardInfo = BoardInfo {
-    name: "Zoom TKL Dyna",
-    cli_name: "zoom-tkl-dyna",
+    name: "Zoom75 Tiga",
+    cli_name: "zoom75-tiga",
     vendor_id: Some(consts::VENDOR_ID),
     product_id: Some(consts::PRODUCT_ID),
     usage_page: Some(consts::USAGE_PAGE),
@@ -53,14 +53,17 @@ pub static INFO: BoardInfo = BoardInfo {
 static API: LazyLock<RwLock<HidApi>> =
     LazyLock::new(|| RwLock::new(HidApi::new().expect("failed to init hidapi")));
 
-/// High level abstraction for managing a Zoom TKL Dyna keyboard
-pub struct ZoomTklDyna {
+/// High level abstraction for managing a Zoom75 Tiga keyboard
+pub struct Zoom75Tiga {
     pub device: HidDevice,
     buf: [u8; 64],
 }
 
-impl ZoomTklDyna {
-    /// Find and open the device for modifications
+impl Zoom75Tiga {
+    /// Find and open the device for modifications.
+    ///
+    /// NOTE: This will open any zoom device due to shared usages. Vendor and product IDs are
+    ///       required for proper board detection.
     pub fn open() -> Result<Self> {
         API.write().unwrap().refresh_devices()?;
         let api = API.read().unwrap();
@@ -120,28 +123,7 @@ impl ZoomTklDyna {
         self.execute(packet)
     }
 
-    /// Update the system info display
-    pub fn set_system_info(
-        &mut self,
-        cpu_temp: u8,
-        gpu_temp: u32,
-        download_rate: f32,
-        gpu_fan_speed: u32,
-    ) -> Result<()> {
-        let mut gpu_fan_speed_adjusted = gpu_fan_speed;
-        if gpu_fan_speed >= 10000 {
-            eprintln!("warning: actual fan speed at {gpu_fan_speed}. clamping to 9999");
-            gpu_fan_speed_adjusted = 9999;
-        }
-
-        let packet =
-            protocol::set_system_info(cpu_temp, gpu_temp, download_rate, gpu_fan_speed_adjusted);
-
-        self.execute(packet)
-    }
-
     /// Set the screen theme colors.
-    /// For TKL Dyna, this sets the reactive typing color themeing built into the screen.
     pub fn set_theme(&mut self, bg_color: Rgb565, font_color: Rgb565, theme_id: u8) -> Result<()> {
         let packet = protocol::theme(bg_color, font_color, theme_id);
         self.execute(packet)
@@ -218,29 +200,9 @@ impl ZoomTklDyna {
 
 // === Trait Implementations ===
 
-impl Board for ZoomTklDyna {
+impl Board for Zoom75Tiga {
     fn info(&self) -> &'static BoardInfo {
         &INFO
-    }
-
-    fn as_theme(&mut self) -> Option<&mut dyn HasTheme> {
-        Some(self)
-    }
-
-    fn as_screen_size(&self) -> Option<(u32, u32)> {
-        Some((SCREEN_WIDTH, SCREEN_HEIGHT))
-    }
-
-    fn as_screen_nav(&mut self) -> Option<&mut dyn HasScreenNavigation> {
-        Some(self)
-    }
-
-    fn as_image(&mut self) -> Option<&mut dyn HasImage> {
-        Some(self)
-    }
-
-    fn as_gif(&mut self) -> Option<&mut dyn HasGif> {
-        Some(self)
     }
 
     fn as_time(&mut self) -> Option<&mut dyn HasTime> {
@@ -251,65 +213,31 @@ impl Board for ZoomTklDyna {
         Some(self)
     }
 
-    fn as_system_info(&mut self) -> Option<&mut dyn HasSystemInfo> {
+    fn as_screen_size(&self) -> Option<(u32, u32)> {
+        Some((SCREEN_WIDTH, SCREEN_HEIGHT))
+    }
+
+    fn as_image(&mut self) -> Option<&mut dyn HasImage> {
+        Some(self)
+    }
+
+    fn as_gif(&mut self) -> Option<&mut dyn HasGif> {
+        Some(self)
+    }
+
+    fn as_theme(&mut self) -> Option<&mut dyn HasTheme> {
         Some(self)
     }
 }
 
-impl HasTheme for ZoomTklDyna {
-    fn set_theme(&mut self, bg_color: u16, font_color: u16, theme_id: u8) -> Result<()> {
-        ZoomTklDyna::set_theme(self, Rgb565(bg_color), Rgb565(font_color), theme_id)
-    }
-}
-
-impl HasScreenNavigation for ZoomTklDyna {
-    fn screen_up(&mut self) -> Result<()> {
-        ZoomTklDyna::screen_up(self)
-    }
-    fn screen_down(&mut self) -> Result<()> {
-        ZoomTklDyna::screen_down(self)
-    }
-    fn screen_switch(&mut self) -> Result<()> {
-        ZoomTklDyna::screen_enter(self)
-    }
-    fn screen_reset(&mut self) -> Result<()> {
-        ZoomTklDyna::screen_return(self)
-    }
-}
-
-impl HasImage for ZoomTklDyna {
-    fn upload_image(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()> {
-        ZoomTklDyna::upload_image(self, data, progress)
-    }
-
-    fn clear_image(&mut self) -> Result<()> {
-        // Send empty termination to clear
-        let packet = protocol::image_end();
-        self.execute(packet)
-    }
-}
-
-impl HasGif for ZoomTklDyna {
-    fn upload_gif(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()> {
-        // Re-encode standard GIF to RGB565 format
-        let encoded = encode_gif(data, [0, 0, 0], false, |_, _| {})
-            .ok_or(BoardError::InvalidMedia("failed to encode gif to rgb565"))?;
-        self.upload_565_animation(&encoded, progress)
-    }
-
-    fn clear_gif(&mut self) -> Result<()> {
-        ZoomTklDyna::clear_gif(self)
-    }
-}
-
-impl HasTime for ZoomTklDyna {
+impl HasTime for Zoom75Tiga {
     fn set_time(&mut self, time: DateTime<Local>, _use_12hr: bool) -> Result<()> {
-        // Note: The TKL Dyna uses 24-hour format internally, so we ignore _use_12hr
-        ZoomTklDyna::set_time(self, time)
+        // Note: The Zoom75 Tiga uses 24-hour format internally, so we ignore _use_12hr
+        Zoom75Tiga::set_time(self, time)
     }
 }
 
-impl HasWeather for ZoomTklDyna {
+impl HasWeather for Zoom75Tiga {
     fn set_weather(
         &mut self,
         wmo: u8,
@@ -320,12 +248,55 @@ impl HasWeather for ZoomTklDyna {
     ) -> Result<()> {
         let icon = WeatherIcon::from_wmo(wmo, is_day)
             .ok_or(BoardError::CommandFailed("unknown WMO code"))?;
-        ZoomTklDyna::set_weather(self, icon, current, low, high)
+        Zoom75Tiga::set_weather(self, icon, current, low, high)
     }
 }
 
-impl HasSystemInfo for ZoomTklDyna {
-    fn set_system_info(&mut self, cpu: u8, gpu: u32, download: f32, fan_rpm: u32) -> Result<()> {
-        ZoomTklDyna::set_system_info(self, cpu, gpu, download, fan_rpm)
+impl HasImage for Zoom75Tiga {
+    fn upload_image(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()> {
+        Zoom75Tiga::upload_image(self, data, progress)
+    }
+
+    fn clear_image(&mut self) -> Result<()> {
+        // Send empty termination to clear
+        let packet = protocol::image_end();
+        self.execute(packet)
+    }
+}
+
+impl HasTheme for Zoom75Tiga {
+    fn set_theme(&mut self, bg_color: u16, font_color: u16, theme_id: u8) -> Result<()> {
+        Zoom75Tiga::set_theme(self, Rgb565(bg_color), Rgb565(font_color), theme_id)
+    }
+}
+
+impl HasGif for Zoom75Tiga {
+    fn upload_gif(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()> {
+        // Re-encode standard GIF to RGB565 format
+        let encoded = encode_gif(data, [0, 0, 0], false, |_, _| {})
+            .ok_or(BoardError::InvalidMedia("failed to encode gif to rgb565"))?;
+        self.upload_565_animation(&encoded, progress)
+    }
+
+    fn clear_gif(&mut self) -> Result<()> {
+        Zoom75Tiga::clear_gif(self)
+    }
+}
+
+impl HasScreenNavigation for Zoom75Tiga {
+    fn screen_up(&mut self) -> Result<()> {
+        self.screen_up()
+    }
+
+    fn screen_down(&mut self) -> Result<()> {
+        self.screen_down()
+    }
+
+    fn screen_switch(&mut self) -> Result<()> {
+        self.screen_enter()
+    }
+
+    fn screen_reset(&mut self) -> Result<()> {
+        self.screen_return()
     }
 }
