@@ -17,7 +17,8 @@ use image::AnimationDecoder;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use types::{encode_temperature, Rgb565, ScreenMode, WeatherIcon};
 use zoom_sync_core::{
-    Board, BoardError, BoardInfo, Capabilities, HasGif, HasImage, HasScreenNavigation, HasSystemInfo, HasTheme, HasTime, HasWeather, Result
+    Board, BoardError, BoardInfo, Capabilities, HasGif, HasImage, HasScreenNavigation,
+    HasSystemInfo, HasTheme, HasTime, HasWeather, Result,
 };
 
 pub mod abi;
@@ -213,7 +214,7 @@ impl ZoomTklDyna {
         );
         self.execute(packet)
     }
-    
+
     /// Update the system info display
     pub fn set_system_info(
         &mut self,
@@ -222,14 +223,14 @@ impl ZoomTklDyna {
         download_rate: f32,
         gpu_fan_speed: u32,
     ) -> Result<()> {
-
         let mut gpu_fan_speed_adjusted = gpu_fan_speed;
         if gpu_fan_speed >= 10000 {
             eprintln!("warning: actual fan speed at {gpu_fan_speed}. clamping to 9999");
             gpu_fan_speed_adjusted = 9999;
         }
 
-        let packet = abi::set_system_info(cpu_temp, gpu_temp, download_rate, gpu_fan_speed_adjusted);
+        let packet =
+            abi::set_system_info(cpu_temp, gpu_temp, download_rate, gpu_fan_speed_adjusted);
         self.execute(packet)
     }
 
@@ -417,7 +418,7 @@ impl HasWeather for ZoomTklDyna {
     }
 }
 
-impl HasSystemInfo for  ZoomTklDyna {
+impl HasSystemInfo for ZoomTklDyna {
     fn set_system_info(&mut self, cpu: u8, gpu: u32, download: f32, fan_rpm: u32) -> Result<()> {
         ZoomTklDyna::set_system_info(self, cpu, gpu, download, fan_rpm)
     }

@@ -45,7 +45,7 @@ pub enum GpuMode {
         u32,
         /// Manually set GPU stats, fanspeed. Disables automatic fetching.
         #[bpaf(long("gpu-fanspeed"), argument("FAN-SPEED"), fallback(0))]
-        u32
+        u32,
     ),
 }
 
@@ -95,7 +95,7 @@ impl GpuStats {
                 if farenheit {
                     (v as f64 * 9. / 5. + 32.) as u32
                 } else {
-                    v as u32
+                    v
                 }
             })
     }
@@ -214,11 +214,10 @@ pub fn apply_system(
     match gpu_temp_pull {
         Left(temp) => {
             gpu_temp = temp;
-
-        }
+        },
         Right((temp, _)) => {
             gpu_temp = temp;
-        }
+        },
     }
 
     if gpu_temp >= 100 {
@@ -226,17 +225,10 @@ pub fn apply_system(
         gpu_temp = 99;
     }
 
-    let mut gpu_fan_speed: u32;
-
-    match gpu_fan_speed_pull {
-        Left(fanspeed) => {
-            gpu_fan_speed = fanspeed;
-
-        }
-        Right((_, fanspeed)) => {
-            gpu_fan_speed = fanspeed;
-        }
-    }
+    let gpu_fan_speed: u32 = match gpu_fan_speed_pull {
+        Left(fanspeed) => fanspeed,
+        Right((_, fanspeed)) => fanspeed,
+    };
 
     let download = download.unwrap_or_default();
 

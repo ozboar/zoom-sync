@@ -75,7 +75,7 @@ pub fn build_packet(command: u8, payload: &[u8], sub_type: u8) -> [u8; 32] {
     packet[6] = (crc & 0xFF) as u8; // CRC low byte
     packet[7] = (crc >> 8) as u8; // CRC high byte
 
-    // Additional 0 padding byte - NOTE, this loses one byte off of the original packet, 
+    // Additional 0 padding byte - NOTE, this loses one byte off of the original packet,
     // so if we're setting packet[31] we're losing that byte. As far as I know, the largest
     // thing we send through here is 16 bytes, which 12(starting point of data)+16=28, so
     // we *should* be alright.
@@ -185,12 +185,12 @@ pub fn image_end() -> [u8; 32] {
 /// - Byte 0: Unknown flag (0x00)
 /// - Byte 1-2: CPU Temp (big-endian)
 /// - Bytes 3-4: GPU Temp (big-endian)
-/// - Byte 5-6: Unknown Identifier, I speculated that it might SSD Temp looking at 
-///             the payload at one point but it doesn't display on screen anywhere.
+/// - Byte 5-6: Unknown Identifier, I speculated that it might SSD Temp looking at
+///   the payload at one point but it doesn't display on screen anywhere.
 /// - Byte 7-8: Fan RPM (big-endian)
 /// - Byte 9-10: Download Speed (big-endian)
 /// - Byte 11: 0xFF, (magic identifier)
-pub fn set_system_info(cpu_temp: u8, gpu_temp: u32, download: f32, fan_rpm: u32 ) -> [u8; 32] {
+pub fn set_system_info(cpu_temp: u8, gpu_temp: u32, download: f32, fan_rpm: u32) -> [u8; 32] {
     let gpu_temp_bytes: [u8; 4] = gpu_temp.to_be_bytes();
     let download_bytes: [u8; 4] = ((download * 10.0) as u32).to_be_bytes();
     let fan_rpm_bytes: [u8; 4] = fan_rpm.to_be_bytes();
@@ -207,7 +207,7 @@ pub fn set_system_info(cpu_temp: u8, gpu_temp: u32, download: f32, fan_rpm: u32 
         fan_rpm_bytes[3],
         download_bytes[2],
         download_bytes[3],
-        0xFF
+        0xFF,
     ];
     build_packet(cmd::SYSINFO, &payload, 0x02)
 }
