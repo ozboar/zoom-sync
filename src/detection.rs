@@ -4,6 +4,7 @@ use bpaf::Bpaf;
 use hidapi::HidApi;
 use zoom65v3::{Zoom65v3, INFO as ZOOM65V3_INFO};
 use zoom75_tiga::{Zoom75Tiga, INFO as ZOOM75_TIGA_INFO};
+use zoom98::{Zoom98, INFO as ZOOM98_INFO};
 use zoom_sync_core::{Board, BoardError, BoardInfo, Capabilities};
 use zoom_tkl_dyna::{ZoomTklDyna, INFO as ZOOM_TKL_DYNA_INFO};
 
@@ -21,6 +22,8 @@ pub enum BoardKind {
     /// Zoom75 Tiga
     #[bpaf(long("zoom75-tiga"))]
     Zoom75Tiga,
+    /// Zoom 98
+    Zoom98,
 }
 
 /// Check if a HID device matches the board info
@@ -39,6 +42,7 @@ impl BoardKind {
             BoardKind::Zoom65v3 => Some(&ZOOM65V3_INFO),
             BoardKind::ZoomTklDyna => Some(&ZOOM_TKL_DYNA_INFO),
             BoardKind::Zoom75Tiga => Some(&ZOOM75_TIGA_INFO),
+            BoardKind::Zoom98 => Some(&ZOOM98_INFO),
         }
     }
 
@@ -54,6 +58,9 @@ impl BoardKind {
             }
             if matches(device, &ZOOM75_TIGA_INFO) {
                 return Some(BoardKind::Zoom75Tiga);
+            }
+            if matches(device, &ZOOM98_INFO) {
+                return Some(BoardKind::Zoom98);
             }
         }
         None
@@ -92,6 +99,7 @@ impl BoardKind {
             BoardKind::Zoom65v3 => Ok(Box::new(Zoom65v3::open()?)),
             BoardKind::ZoomTklDyna => Ok(Box::new(ZoomTklDyna::open()?)),
             BoardKind::Zoom75Tiga => Ok(Box::new(Zoom75Tiga::open()?)),
+            BoardKind::Zoom98 => Ok(Box::new(Zoom98::open()?)),
             BoardKind::Auto => {
                 if let Some(detected) = Self::detect() {
                     detected.as_board()

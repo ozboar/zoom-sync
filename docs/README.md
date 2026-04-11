@@ -21,7 +21,7 @@
 
 Cross-platform utility for syncing Zoom keyboard screen modules
 
-**Usage**: **`zoom-sync`** \[**`--auto`** | **`--zoom65v3`** | **`--zoom-tkl-dyna`**\] \[_`COMMAND ...`_\]
+**Usage**: **`zoom-sync`** \[**`--auto`** | **`--zoom65v3`** | **`--zoom-tkl-dyna`** | **`--zoom75-tiga`** | **`--zoom98`**\] \[_`COMMAND ...`_\]
 
 
 
@@ -32,6 +32,10 @@ Cross-platform utility for syncing Zoom keyboard screen modules
   Zoom65 V3
 - **`    --zoom-tkl-dyna`** &mdash; 
   Zoom TKL Dyna
+- **`    --zoom75-tiga`** &mdash; 
+  Zoom75 Tiga
+- **`    --zoom98`** &mdash; 
+  Zoom 98
 
 
 
@@ -150,7 +154,7 @@ Set weather data
 
 Set system info
 
-**Usage**: **`zoom-sync`** **`set`** **`system`** \[**`-f`**\] (\[**`--cpu`**=_`LABEL`_\] | **`-c`**=_`TEMP`_) (\[**`--gpu`**=_`ID`_\] | **`-g`**=_`TEMP`_) \[**`-d`**=_`SPEED`_\]
+**Usage**: **`zoom-sync`** **`set`** **`system`** \[**`-f`**\] (\[**`--cpu`**=_`LABEL`_\] | **`-c`**=_`TEMP`_) (\[**`--gpu`**=_`ID`_\] | \[**`--gpu-temp`**=_`TEMP`_\] \[**`--gpu-fanspeed`**=_`FAN-SPEED`_\]) \[**`-d`**=_`SPEED`_\]
 
 **Available options:**
 - **`-f`**, **`--farenheit`** &mdash; 
@@ -165,8 +169,10 @@ Set system info
   GPU device id to fetch temperature data for (nvidia only)
    
   [default: 0]
-- **`-g`**, **`--gpu-temp`**=_`TEMP`_ &mdash; 
-  Manually set GPU temperature
+- **`    --gpu-temp`**=_`TEMP`_ &mdash; 
+  Manually set GPU stats, temperature. Disables automatic fetching.
+- **`    --gpu-fanspeed`**=_`FAN-SPEED`_ &mdash; 
+  Manually set GPU stats, fanspeed. Disables automatic fetching.
 - **`-d`**, **`--download`**=_`SPEED`_ &mdash; 
   Manually set download speed
 - **`-h`**, **`--help`** &mdash; 
@@ -177,17 +183,19 @@ Set system info
 
 Change current screen
 
-**Usage**: **`zoom-sync`** **`set`** **`screen`** (**`-s`**=_`POSITION`_ | **`--up`** | **`--down`** | **`--switch`**)
+**Usage**: **`zoom-sync`** **`set`** **`screen`** (**`-s`**=_`POSITION`_ | **`--up`** | **`--down`** | **`--switch`** | **`--reset`**)
 
 **Screen options:**
 - **`-s`**, **`--screen`**=_`POSITION`_ &mdash; 
-  Reset and move the screen to a specific position. [cpu|gpu|download|time|weather|meletrix|zoom65|image|gif|battery]
+  Reset and move the screen to a specific position. Zoom65v3: [cpu|gpu|download|time|weather|meletrix|zoom65|image|gif|battery] Zoom TKL DYNA: [up|down|enter|return]
 - **`    --up`** &mdash; 
   Move the screen up
 - **`    --down`** &mdash; 
   Move the screen down
 - **`    --switch`** &mdash; 
   Switch the screen offset
+- **`    --reset`** &mdash; 
+  Reset the screen to default position
 
 
 
