@@ -15,8 +15,7 @@ use zoom_sync_core::{
     HasSystemInfo, HasTheme, HasTime, HasWeather, Result,
 };
 use zoom_tiga_protocol::{
-    encode_gif, encode_temperature, frame_from_rgb565a, Rgb565, ScreenMode, TigaDevice,
-    WeatherIcon,
+    encode_gif, encode_temperature, frame_from_rgb565a, Rgb565, ScreenMode, TigaDevice, WeatherIcon,
 };
 
 pub use zoom_tiga_protocol::{self as protocol, SCREEN_HEIGHT, SCREEN_WIDTH};

@@ -32,7 +32,7 @@ Cross-platform utility to sync Meletrix Zoom Keyboard screen modules.
 | Screen size         | 110x110            | 320x172                | 320x172                |
 | Time sync           | Yes                | Yes                    | Yes                    |
 | Weather             | Yes                | Yes                    | Yes                    |
-| System info         | Yes (CPU/GPU/DL)   | Yes (CPU/GPU/Fan/DL)   | No                     |
+| System info         | Yes (CPU/GPU/DL)   | Yes (CPU/GPU/Fan/DL)   | Yes (CPU/GPU/Fan/DL)   |
 | Screen control      | Yes                | Navigation only        | Navigation only        |
 | Image upload        | Yes                | Yes (no clear)         | Yes (no clear)         |
 | GIF upload          | Yes                | Yes (no clear/delays)  | Yes (no clear/delays)  |

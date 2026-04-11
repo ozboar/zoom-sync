@@ -11,12 +11,11 @@ use std::sync::{LazyLock, RwLock};
 use chrono::{DateTime, Datelike, Local, TimeZone, Timelike};
 use hidapi::HidApi;
 use zoom_sync_core::{
-    Board, BoardError, BoardInfo, Capabilities, HasGif, HasImage, HasScreenNavigation, HasTheme,
-    HasTime, HasWeather, Result,
+    Board, BoardError, BoardInfo, Capabilities, HasGif, HasImage, HasScreenNavigation,
+    HasSystemInfo, HasTheme, HasTime, HasWeather, Result,
 };
 use zoom_tiga_protocol::{
-    encode_gif, encode_temperature, frame_from_rgb565a, Rgb565, ScreenMode, TigaDevice,
-    WeatherIcon,
+    encode_gif, encode_temperature, frame_from_rgb565a, Rgb565, ScreenMode, TigaDevice, WeatherIcon,
 };
 
 pub use zoom_tiga_protocol::{self as protocol, SCREEN_HEIGHT, SCREEN_WIDTH};
@@ -45,7 +44,7 @@ pub static INFO: BoardInfo = BoardInfo {
         time: true,
         weather: true,
         image: true,
-        system_info: false,
+        system_info: true,
         screen_pos: false,
         screen_nav: true,
         gif: true,
@@ -109,6 +108,28 @@ impl Zoom75Tiga {
             encode_temperature(high),
             encode_temperature(low),
         );
+        self.device.execute(packet)
+    }
+
+    /// Update the system info display.
+    ///
+    /// Not present in the vendor web driver; assumed to work since the protocol matches the
+    /// Zoom TKL Dyna, which supports it.
+    pub fn set_system_info(
+        &mut self,
+        cpu_temp: u8,
+        gpu_temp: u16,
+        download_rate: f32,
+        gpu_fan_speed: u16,
+    ) -> Result<()> {
+        let mut gpu_fan_speed_adjusted = gpu_fan_speed;
+        if gpu_fan_speed >= 10000 {
+            eprintln!("warning: actual fan speed at {gpu_fan_speed}. clamping to 9999");
+            gpu_fan_speed_adjusted = 9999;
+        }
+
+        let packet =
+            protocol::set_system_info(cpu_temp, gpu_temp, download_rate, gpu_fan_speed_adjusted);
         self.device.execute(packet)
     }
 
@@ -192,6 +213,10 @@ impl Board for Zoom75Tiga {
     fn as_theme(&mut self) -> Option<&mut dyn HasTheme> {
         Some(self)
     }
+
+    fn as_system_info(&mut self) -> Option<&mut dyn HasSystemInfo> {
+        Some(self)
+    }
 }
 
 impl HasTime for Zoom75Tiga {
@@ -212,6 +237,18 @@ impl HasWeather for Zoom75Tiga {
     ) -> Result<()> {
         let icon = WeatherIcon::from_wmo(wmo, is_day);
         Zoom75Tiga::set_weather(self, icon, current, low, high)
+    }
+}
+
+impl HasSystemInfo for Zoom75Tiga {
+    fn set_system_info(&mut self, cpu: u8, gpu: u32, download: f32, fan_rpm: u32) -> Result<()> {
+        Zoom75Tiga::set_system_info(
+            self,
+            cpu,
+            gpu.try_into().unwrap_or(u16::MAX),
+            download,
+            fan_rpm.try_into().unwrap_or(u16::MAX),
+        )
     }
 }
 
