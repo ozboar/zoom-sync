@@ -47,6 +47,7 @@ fn pre_parse_board() -> BoardKind {
             "--zoom65v3" => return BoardKind::Zoom65v3,
             "--zoom-tkl-dyna" => return BoardKind::ZoomTklDyna,
             "--zoom75-tiga" => return BoardKind::Zoom75Tiga,
+            "--zoom98" => return BoardKind::Zoom98,
             _ => {},
         }
     }

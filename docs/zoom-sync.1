@@ -4,13 +4,13 @@
 .PP
 .SH SYNOPSIS
 .nf
-\fBzoom\-sync\fP\fR \fP\fR[\fP\fB\-\-auto\fP\fR | \fP\fB\-\-zoom65v3\fP\fR | \fP\fB\-\-zoom\-tkl\-dyna\fP\fR] [\fP\fICOMMAND ...\fP\fR]\fP\fR
+\fBzoom\-sync\fP\fR \fP\fR[\fP\fB\-\-auto\fP\fR | \fP\fB\-\-zoom65v3\fP\fR | \fP\fB\-\-zoom\-tkl\-dyna\fP\fR | \fP\fB\-\-zoom75\-tiga\fP\fR | \fP\fB\-\-zoom98\fP\fR] [\fP\fICOMMAND ...\fP\fR]\fP\fR
 \fP\fBzoom\-sync\fP\fR \fP\fBtray\fP\fR \fP\fR
 \fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fICOMMAND ...\fP\fR
 \fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBtime\fP\fR \fP\fR
 \fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBweather\fP\fR \fP\fR[\fP\fB\-f\fP\fR] (\fP\fB\-\-no\-weather\fP\fR | [\fP\fB\-\-coords\fP\fR \fP\fILAT\fP\fR \fP\fILON\fP\fR] | \fP\fB\-w\fP\fR \fP\fIWMO\fP\fR \fP\fICUR\fP\fR \fP\fIMIN\fP\fR \fP\fIMAX\fP\fR)\fP\fR
-\fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBsystem\fP\fR \fP\fR[\fP\fB\-f\fP\fR] ([\fP\fB\-\-cpu\fP\fR=\fP\fILABEL\fP\fR] | \fP\fB\-c\fP\fR=\fP\fITEMP\fP\fR) ([\fP\fB\-\-gpu\fP\fR=\fP\fIID\fP\fR] | \fP\fB\-g\fP\fR=\fP\fITEMP\fP\fR) [\fP\fB\-d\fP\fR=\fP\fISPEED\fP\fR]\fP\fR
-\fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBscreen\fP\fR \fP\fR(\fP\fB\-s\fP\fR=\fP\fIPOSITION\fP\fR | \fP\fB\-\-up\fP\fR | \fP\fB\-\-down\fP\fR | \fP\fB\-\-switch\fP\fR)\fP\fR
+\fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBsystem\fP\fR \fP\fR[\fP\fB\-f\fP\fR] ([\fP\fB\-\-cpu\fP\fR=\fP\fILABEL\fP\fR] | \fP\fB\-c\fP\fR=\fP\fITEMP\fP\fR) ([\fP\fB\-\-gpu\fP\fR=\fP\fIID\fP\fR] | [\fP\fB\-\-gpu\-temp\fP\fR=\fP\fITEMP\fP\fR] [\fP\fB\-\-gpu\-fanspeed\fP\fR=\fP\fIFAN\-SPEED\fP\fR]) [\fP\fB\-d\fP\fR=\fP\fISPEED\fP\fR]\fP\fR
+\fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBscreen\fP\fR \fP\fR(\fP\fB\-s\fP\fR=\fP\fIPOSITION\fP\fR | \fP\fB\-\-up\fP\fR | \fP\fB\-\-down\fP\fR | \fP\fB\-\-switch\fP\fR | \fP\fB\-\-reset\fP\fR)\fP\fR
 \fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBtheme\fP\fR \fP\fR[\fP\fB\-b\fP\fR=\fP\fICOLOR\fP\fR] [\fP\fB\-c\fP\fR=\fP\fICOLOR\fP\fR] [\fP\fB\-i\fP\fR=\fP\fIID\fP\fR]\fP\fR
 \fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBimage\fP\fR \fP\fR([\fP\fB\-n\fP\fR] [\fP\fB\-b\fP\fR=\fP\fIARG\fP\fR] \fP\fIPATH\fP\fR | \fP\fICOMMAND ...\fP\fR)\fP\fR
 \fP\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBimage\fP\fR \fP\fBclear\fP\fR \fP\fR
@@ -23,7 +23,7 @@
 .SH NAME
 \fRzoom\-sync \- \fP\fRCross\-platform utility for syncing Zoom keyboard screen modules\fP
 .SH SYNOPSIS
-\fBzoom\-sync\fP\fR \fP\fR[\fP\fB\-\-auto\fP\fR | \fP\fB\-\-zoom65v3\fP\fR | \fP\fB\-\-zoom\-tkl\-dyna\fP\fR] [\fP\fICOMMAND ...\fP\fR]\fP
+\fBzoom\-sync\fP\fR \fP\fR[\fP\fB\-\-auto\fP\fR | \fP\fB\-\-zoom65v3\fP\fR | \fP\fB\-\-zoom\-tkl\-dyna\fP\fR | \fP\fB\-\-zoom75\-tiga\fP\fR | \fP\fB\-\-zoom98\fP\fR] [\fP\fICOMMAND ...\fP\fR]\fP
 .PP
 .SS BOARD\ SELECTION:
 .TP
@@ -37,6 +37,14 @@
 .TP
 \fB    \-\-zoom\-tkl\-dyna\fP
 \fRZoom TKL Dyna\fP
+.PP
+.TP
+\fB    \-\-zoom75\-tiga\fP
+\fRZoom75 Tiga\fP
+.PP
+.TP
+\fB    \-\-zoom98\fP
+\fRZoom 98\fP
 .PP
 .PP
 .SS AVAILABLE\ OPTIONS:
@@ -189,7 +197,7 @@ unitless.\fP
 .SH NAME
 \fRzoom\-sync \- \fP\fRSet system info\fP
 .SH SYNOPSIS
-\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBsystem\fP\fR \fP\fR[\fP\fB\-f\fP\fR] ([\fP\fB\-\-cpu\fP\fR=\fP\fILABEL\fP\fR] | \fP\fB\-c\fP\fR=\fP\fITEMP\fP\fR) ([\fP\fB\-\-gpu\fP\fR=\fP\fIID\fP\fR] | \fP\fB\-g\fP\fR=\fP\fITEMP\fP\fR) [\fP\fB\-d\fP\fR=\fP\fISPEED\fP\fR]\fP
+\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBsystem\fP\fR \fP\fR[\fP\fB\-f\fP\fR] ([\fP\fB\-\-cpu\fP\fR=\fP\fILABEL\fP\fR] | \fP\fB\-c\fP\fR=\fP\fITEMP\fP\fR) ([\fP\fB\-\-gpu\fP\fR=\fP\fIID\fP\fR] | [\fP\fB\-\-gpu\-temp\fP\fR=\fP\fITEMP\fP\fR] [\fP\fB\-\-gpu\-fanspeed\fP\fR=\fP\fIFAN\-SPEED\fP\fR]) [\fP\fB\-d\fP\fR=\fP\fISPEED\fP\fR]\fP
 .PP
 .SS AVAILABLE\ OPTIONS:
 .TP
@@ -215,8 +223,12 @@ unitless.\fP
 \fR[default: 0]\fP
 .PP
 .TP
-\fB\-g\fP\fR, \fP\fB\-\-gpu\-temp\fP\fR=\fP\fITEMP\fP
-\fRManually set GPU temperature\fP
+\fB    \-\-gpu\-temp\fP\fR=\fP\fITEMP\fP
+\fRManually set GPU stats, temperature. Disables automatic fetching.\fP
+.PP
+.TP
+\fB    \-\-gpu\-fanspeed\fP\fR=\fP\fIFAN\-SPEED\fP
+\fRManually set GPU stats, fanspeed. Disables automatic fetching.\fP
 .PP
 .TP
 \fB\-d\fP\fR, \fP\fB\-\-download\fP\fR=\fP\fISPEED\fP
@@ -230,13 +242,16 @@ unitless.\fP
 .SH NAME
 \fRzoom\-sync \- \fP\fRChange current screen\fP
 .SH SYNOPSIS
-\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBscreen\fP\fR \fP\fR(\fP\fB\-s\fP\fR=\fP\fIPOSITION\fP\fR | \fP\fB\-\-up\fP\fR | \fP\fB\-\-down\fP\fR | \fP\fB\-\-switch\fP\fR)\fP
+\fBzoom\-sync\fP\fR \fP\fBset\fP\fR \fP\fBscreen\fP\fR \fP\fR(\fP\fB\-s\fP\fR=\fP\fIPOSITION\fP\fR | \fP\fB\-\-up\fP\fR | \fP\fB\-\-down\fP\fR | \fP\fB\-\-switch\fP\fR | \fP\fB\-\-reset\fP\fR)\fP
 .PP
 .SS SCREEN\ OPTIONS:
 .TP
 \fB\-s\fP\fR, \fP\fB\-\-screen\fP\fR=\fP\fIPOSITION\fP
 \fRReset and move the screen to a specific position.
-[cpu|gpu|download|time|weather|meletrix|zoom65|image|gif|battery]\fP
+Zoom65v3:
+[cpu|gpu|download|time|weather|meletrix|zoom65|image|gif|battery]
+Zoom TKL DYNA:
+[up|down|enter|return]\fP
 .PP
 .TP
 \fB    \-\-up\fP
@@ -249,6 +264,10 @@ unitless.\fP
 .TP
 \fB    \-\-switch\fP
 \fRSwitch the screen offset\fP
+.PP
+.TP
+\fB    \-\-reset\fP
+\fRReset the screen to default position\fP
 .PP
 .PP
 .SS AVAILABLE\ OPTIONS:

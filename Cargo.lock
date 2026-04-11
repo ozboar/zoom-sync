@@ -4509,6 +4509,7 @@ dependencies = [
  "zoom-tkl-dyna",
  "zoom65v3",
  "zoom75-tiga",
+ "zoom98",
 ]
 
 [[package]]
@@ -4556,6 +4557,15 @@ dependencies = [
  "hidapi",
  "zoom-sync-core",
  "zoom-tiga-protocol",
+]
+
+[[package]]
+name = "zoom98"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hidapi",
+ "zoom-sync-core",
 ]
 
 [[package]]

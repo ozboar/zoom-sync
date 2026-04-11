@@ -27,17 +27,17 @@ Cross-platform utility to sync Meletrix Zoom Keyboard screen modules.
 
 ## Supported Boards
 
-| Feature             | Zoom65 V3          | Zoom TKL Dyna          | Zoom75 Tiga            |
-| ------------------- | ------------------ | ---------------------- | ---------------------- |
-| Screen size         | 110x110            | 320x172                | 320x172                |
-| Time sync           | Yes                | Yes                    | Yes                    |
-| Weather             | Yes                | Yes                    | Yes                    |
-| System info         | Yes (CPU/GPU/DL)   | Needs research         | Needs research         |
-| Screen control      | Yes                | Not fully implemented  | Not fully implemented  |
-| Image upload        | Yes                | Yes                    | Yes                    |
-| GIF upload          | Yes                | Yes                    | Yes                    |
-| Theme customization | Yes (Presets)      | Yes (Colors + Presets) | Yes (Colors + Presets) |
-| 12hr time format    | Yes (simulated)    | No                     | No                     |
+| Feature             | Zoom65 V3          | Zoom TKL Dyna          | Zoom75 Tiga            | Zoom 98                    |
+| ------------------- | ------------------ | ---------------------- | ---------------------- | -------------------------- |
+| Screen size         | 110x110            | 320x172                | 320x172                | Firmware-driven LCD        |
+| Time sync           | Yes                | Yes                    | Yes                    | Yes                        |
+| Weather             | Yes                | Yes                    | Yes                    | Yes (current temp only)    |
+| System info         | Yes (CPU/GPU/DL)   | Needs research         | Needs research         | Yes (CPU/GPU/Fan/DL)       |
+| Screen control      | Yes                | Not fully implemented  | Not fully implemented  | Via QMK keycodes           |
+| Image upload        | Yes                | Yes                    | Yes                    | No                         |
+| GIF upload          | Yes                | Yes                    | Yes                    | No                         |
+| Theme customization | Yes (Presets)      | Yes (Colors + Presets) | Yes (Colors + Presets) | No                         |
+| 12hr time format    | Yes (simulated)    | No                     | No                     | No                         |
 
 ## Third Party Services
 
