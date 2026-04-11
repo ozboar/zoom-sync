@@ -1,6 +1,6 @@
 # zoom-sync
 
-Cross-platform utility to sync Zoom65 v3 screen modules.
+Cross-platform utility to sync Meletrix Zoom Keyboard screen modules.
 
 ## Features
 
@@ -24,6 +24,20 @@ Cross-platform utility to sync Zoom65 v3 screen modules.
 | Image/gif upload    | Supported w/ custom bg | Not supported (use web driver)  |
 | Reactive image/gif  | Simulated              | Not supported                   |
 | Future-proof        | Will always work       | Overflow errors after year 2255 |
+
+## Supported Boards
+
+| Feature             | Zoom65 V3          | Zoom TKL Dyna          |
+| ------------------- | ------------------ | ---------------------- |
+| Screen size         | 110x110            | 320x172                |
+| Time sync           | Yes                | Yes                    |
+| Weather             | Yes                | Yes                    |
+| System info         | Yes (CPU/GPU/DL)   | Needs research         |
+| Screen control      | Yes                | Not fully implemented  |
+| Image upload        | Yes                | Yes                    |
+| GIF upload          | Yes                | Yes                    |
+| Theme customization | Yes (Presets)      | Yes (Colors + Presets) |
+| 12hr time format    | Yes (simulated)    | No                     |
 
 ## Third Party Services
 

@@ -49,29 +49,36 @@ pub trait HasTime {
 /// Weather display capability
 pub trait HasWeather {
     /// Set weather display. WMO code is converted to board-specific icon internally.
-    fn set_weather(&mut self, wmo: u8, is_day: bool, current: u8, low: u8, high: u8) -> Result<()>;
+    /// Temperatures are in Celsius - each board converts to its native format.
+    fn set_weather(
+        &mut self,
+        wmo: u8,
+        is_day: bool,
+        current: i16,
+        low: i16,
+        high: i16,
+    ) -> Result<()>;
 }
 
-/// System info display capability (CPU temp, GPU temp, download speed)
+/// System info display capability (CPU temp, GPU temp, download speed, fan speed (currently set to GPU fans w/gpu driver))
 pub trait HasSystemInfo {
-    fn set_system_info(&mut self, cpu: u8, gpu: u8, download: f32) -> Result<()>;
+    fn set_system_info(&mut self, cpu: u8, gpu: u32, download: f32, fan_rpm: u32) -> Result<()>;
 }
 
 /// Screen position control capability
-pub trait HasScreen {
+pub trait HasScreenPositions {
     /// Available screen positions for this board
     fn screen_positions(&self) -> &'static [ScreenPosition];
     /// Set screen by position ID (e.g., "cpu", "weather", "gif")
     fn set_screen(&mut self, id: &str) -> Result<()>;
+}
+
+/// Screen navigation capability
+pub trait HasScreenNavigation {
     fn screen_up(&mut self) -> Result<()>;
     fn screen_down(&mut self) -> Result<()>;
     fn screen_switch(&mut self) -> Result<()>;
-    fn reset_screen(&mut self) -> Result<()>;
-}
-
-/// Screen dimensions - boards with media support should also implement as_screen_size()
-pub trait HasScreenSize {
-    fn screen_size(&self) -> (u32, u32);
+    fn screen_reset(&mut self) -> Result<()>;
 }
 
 /// Static image upload capability
@@ -84,4 +91,13 @@ pub trait HasImage {
 pub trait HasGif {
     fn upload_gif(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()>;
     fn clear_gif(&mut self) -> Result<()>;
+}
+
+/// Theme customization capability (background color, font color)
+pub trait HasTheme {
+    /// Set screen theme with RGB565 colors
+    /// - bg_color: Background color as RGB565 (16-bit)
+    /// - font_color: Font color as RGB565 (16-bit)
+    /// - theme_id: Theme preset ID
+    fn set_theme(&mut self, bg_color: u16, font_color: u16, theme_id: u8) -> Result<()>;
 }

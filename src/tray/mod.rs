@@ -24,7 +24,7 @@ use zoom_sync_core::Board;
 
 use crate::config::Config;
 use crate::detection::BoardKind;
-use crate::info::{apply_system, CpuTemp, GpuTemp};
+use crate::info::{apply_system, CpuTemp, GpuStats};
 use crate::media::{encode_gif, encode_image};
 use crate::weather::apply_weather;
 
@@ -122,7 +122,7 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
 
     // Temperature monitors (initialized when board connects)
     let mut cpu: Option<Either<CpuTemp, u8>> = None;
-    let mut gpu: Option<Either<GpuTemp, u8>> = None;
+    let mut gpu: Option<Either<GpuStats, (u32, u32)>> = None;
 
     // Weather args
     let mut weather_args = build_weather_args(&state.config);
@@ -279,7 +279,7 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                             println!("reactive mode disabled");
                         } else if let Some(ref mut b) = board {
                             // Enable reactive mode
-                            if let Some(screen) = b.as_screen() {
+                            if let Some(screen) = b.as_screen_pos() {
                                 let _ = screen.set_screen("image");
                             }
                             let board_name = b.info().name.to_lowercase();
@@ -321,14 +321,14 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                         // Initialize temperature monitors
                         if state.config.system_info.enabled {
                             cpu = Some(Either::Left(CpuTemp::new(&state.config.system_info.cpu_source)));
-                            gpu = Some(Either::Left(GpuTemp::new(state.config.system_info.gpu_device)));
+                            gpu = Some(Either::Left(GpuStats::new(state.config.system_info.gpu_device)));
                         }
 
                         // Initialize reactive mode if configured (Linux only)
                         #[cfg(target_os = "linux")]
                         if state.config.general.initial_screen == "reactive" {
                             println!("initializing reactive mode");
-                            if let Some(screen) = b.as_screen() {
+                            if let Some(screen) = b.as_screen_pos() {
                                 let _ = screen.set_screen("image");
                             }
                             let board_name = b.info().name.to_lowercase();
@@ -360,7 +360,7 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                         let skip_initial = false;
 
                         if !skip_initial {
-                            if let Some(screen) = b.as_screen() {
+                            if let Some(screen) = b.as_screen_pos() {
                                 let initial = &state.config.general.initial_screen;
                                 if screen.set_screen(initial).is_ok() {
                                     state.current_screen = Some(initial.clone());
@@ -441,8 +441,10 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
             }
 
             // Reactive mode keypress handling (Linux only)
+
             Some(Some(res)) = OptionFuture::from(reactive_stream.as_mut().map(|s| s.next())), if board.is_some() => {
                 match res {
+                    #[cfg(target_os = "linux")]
                     Ok(Err(e)) => {
                         eprintln!("reactive stream error: {e}");
                         handle_disconnect(&mut board, &mut state, &menu_items);
@@ -452,17 +454,18 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                         if matches!(ev.destructure(), evdev::EventSummary::Key(_, _, _)) {
                             is_reactive_running = true;
                             if let Some(ref mut b) = board {
-                                if let Some(screen) = b.as_screen() {
+                                if let Some(screen) = b.as_screen_nav() {
                                     let _ = screen.screen_switch();
                                 }
                             }
                         }
                     }
+                    #[cfg(target_os = "linux")]
                     Err(_) if is_reactive_running => {
                         is_reactive_running = false;
                         if let Some(ref mut b) = board {
-                            if let Some(screen) = b.as_screen() {
-                                let _ = screen.reset_screen();
+                            if let Some(screen) = b.as_screen_nav() {
+                                let _ = screen.screen_reset();
                                 let _ = screen.screen_switch();
                                 let _ = screen.screen_switch();
                             }
@@ -489,7 +492,7 @@ async fn handle_command(
     state: &mut TrayState,
     menu_items: &menu::MenuItems,
     cpu: &mut Option<Either<CpuTemp, u8>>,
-    gpu: &mut Option<Either<GpuTemp, u8>>,
+    gpu: &mut Option<Either<GpuStats, (u32, u32)>>,
     weather_args: &mut crate::weather::WeatherArgs,
 ) -> CommandResult {
     match cmd {
@@ -503,7 +506,7 @@ async fn handle_command(
             }
 
             if let Some(ref mut b) = board {
-                if let Some(screen) = b.as_screen() {
+                if let Some(screen) = b.as_screen_pos() {
                     match screen.set_screen(id) {
                         Ok(()) => {
                             state.current_screen = Some(id.to_string());
@@ -532,7 +535,7 @@ async fn handle_command(
                 *cpu = Some(Either::Left(CpuTemp::new(
                     &state.config.system_info.cpu_source,
                 )));
-                *gpu = Some(Either::Left(GpuTemp::new(
+                *gpu = Some(Either::Left(GpuStats::new(
                     state.config.system_info.gpu_device,
                 )));
             }
