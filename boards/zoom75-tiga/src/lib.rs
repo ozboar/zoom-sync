@@ -42,7 +42,7 @@ pub static INFO: BoardInfo = BoardInfo {
         time: true,
         weather: true,
         image: true,
-        system_info: false,
+        system_info: true,
         screen_pos: false,
         screen_nav: true,
         gif: true,
@@ -71,9 +71,10 @@ impl Zoom75Tiga {
             device: api
                 .device_list()
                 .find(|d| {
-                    // d.vendor_id() == consts::VENDOR_ID &&
-                    // d.product_id() == consts::PRODUCT_ID &&
-                    d.usage_page() == consts::USAGE_PAGE && d.usage() == consts::USAGE
+                    d.vendor_id() == consts::VENDOR_ID
+                        && d.product_id() == consts::PRODUCT_ID
+                        && d.usage_page() == consts::USAGE_PAGE
+                        && d.usage() == consts::USAGE
                 })
                 .ok_or(BoardError::DeviceNotFound)?
                 .open_device(&api)?,

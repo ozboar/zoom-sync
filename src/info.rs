@@ -225,7 +225,7 @@ pub fn apply_system(
         gpu_temp = 99;
     }
 
-    let gpu_fan_speed: u32 = match gpu_fan_speed_pull {
+    let gpu_fan_speed = match gpu_fan_speed_pull {
         Left(fanspeed) => fanspeed,
         Right((_, fanspeed)) => fanspeed,
     };

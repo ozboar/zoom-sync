@@ -135,7 +135,8 @@ impl ZoomTklDyna {
         }
 
         let packet =
-            abi::set_system_info(cpu_temp, gpu_temp, download_rate, gpu_fan_speed_adjusted);
+            protocol::set_system_info(cpu_temp, gpu_temp, download_rate, gpu_fan_speed_adjusted);
+
         self.execute(packet)
     }
 
