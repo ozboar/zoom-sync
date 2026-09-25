@@ -23,7 +23,7 @@ pub mod ids {
     pub const SCREEN_IMAGE: &str = "screen_image";
     pub const SCREEN_GIF: &str = "screen_gif";
     pub const SCREEN_BATTERY: &str = "screen_battery";
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     pub const SCREEN_REACTIVE: &str = "screen_reactive";
 
     // Settings toggles
@@ -68,7 +68,7 @@ pub struct MenuItems {
     pub screen_image: CheckMenuItem,
     pub screen_gif: CheckMenuItem,
     pub screen_battery: CheckMenuItem,
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     pub screen_reactive: CheckMenuItem,
     // Settings toggles
     pub toggle_weather: CheckMenuItem,
@@ -121,9 +121,9 @@ impl MenuItems {
 
         // Update screen checkmarks to show current default
         // When reactive is active, uncheck all other screen positions
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
         let reactive_active = state.reactive_active;
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
         let reactive_active = false;
 
         let default_screen = &state.config.general.initial_screen;
@@ -145,7 +145,7 @@ impl MenuItems {
             item.set_checked(!reactive_active && *default_screen == *id);
         }
 
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
         self.screen_reactive.set_checked(reactive_active);
 
         // Update toggles from config
@@ -265,8 +265,8 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
     );
     screen_submenu.append(&screen_battery).unwrap();
 
-    // Reactive mode (Linux only)
-    #[cfg(target_os = "linux")]
+    // Reactive mode (Linux and macOS)
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     let screen_reactive = {
         screen_submenu
             .append(&PredefinedMenuItem::separator())
@@ -431,7 +431,7 @@ pub fn build_menu(state: &TrayState) -> MenuItems {
         screen_image,
         screen_gif,
         screen_battery,
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
         screen_reactive,
         toggle_weather,
         toggle_system,
@@ -467,7 +467,7 @@ pub fn handle_menu_event(event: MenuEvent) -> MenuAction {
         ids::SCREEN_IMAGE => MenuAction::Command(TrayCommand::SetScreen("image")),
         ids::SCREEN_GIF => MenuAction::Command(TrayCommand::SetScreen("gif")),
         ids::SCREEN_BATTERY => MenuAction::Command(TrayCommand::SetScreen("battery")),
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
         ids::SCREEN_REACTIVE => MenuAction::Command(TrayCommand::SetScreen("reactive")),
 
         // Toggles

@@ -29,6 +29,8 @@ use crate::media::{encode_gif, encode_image};
 use crate::weather::apply_weather;
 
 mod commands;
+#[cfg(target_os = "macos")]
+mod keys_macos;
 mod menu;
 
 pub use commands::{ConnectionStatus, TrayCommand, TrayState};
@@ -97,6 +99,18 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
         gtk::main_iteration_do(false);
     }
 
+    // Initialize NSApplication (required for tray-icon/muda on macOS)
+    #[cfg(target_os = "macos")]
+    let ns_app = {
+        use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+        let mtm = objc2_foundation::MainThreadMarker::new()
+            .ok_or("tray must run on the main thread")?;
+        let app = NSApplication::sharedApplication(mtm);
+        app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+        app.finishLaunching();
+        app
+    };
+
     // Process Win32 messages to render tray icon before entering main loop
     #[cfg(target_os = "windows")]
     unsafe {
@@ -138,13 +152,17 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
     // Time sync interval (only used in 12hr mode, syncs on the hour)
     let mut time_interval: Option<tokio::time::Interval> = None;
 
-    // Reactive mode (Linux only)
+    // Reactive mode (Linux and macOS)
     #[cfg(target_os = "linux")]
     let mut reactive_stream: Option<
         std::pin::Pin<Box<tokio_stream::Timeout<evdev::EventStream>>>,
     > = None;
-    #[cfg(not(target_os = "linux"))]
-    let mut reactive_stream: Option<futures::stream::Empty<()>> = None;
+    #[cfg(target_os = "macos")]
+    let mut reactive_stream: Option<keys_macos::KeyStream> = None;
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    let mut reactive_stream: Option<
+        futures::stream::Empty<Result<std::io::Result<()>, ()>>,
+    > = None;
 
     let mut is_reactive_running = false;
 
@@ -156,6 +174,22 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                 #[cfg(target_os = "linux")]
                 while gtk::events_pending() {
                     gtk::main_iteration_do(false);
+                }
+
+                // Process AppKit events (required for tray-icon/muda on macOS)
+                #[cfg(target_os = "macos")]
+                unsafe {
+                    use objc2_app_kit::NSEventMask;
+                    use objc2_foundation::NSDefaultRunLoopMode;
+                    let past = objc2_foundation::NSDate::distantPast();
+                    while let Some(event) = ns_app.nextEventMatchingMask_untilDate_inMode_dequeue(
+                        NSEventMask::Any,
+                        Some(&past),
+                        NSDefaultRunLoopMode,
+                        true,
+                    ) {
+                        ns_app.sendEvent(&event);
+                    }
                 }
 
                 // Process Win32 messages (required for tray-icon/muda on Windows)
@@ -266,7 +300,7 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                 ).await {
                     CommandResult::Quit => return Ok(()),
                     CommandResult::Continue => {}
-                    #[cfg(target_os = "linux")]
+                    #[cfg(any(target_os = "linux", target_os = "macos"))]
                     CommandResult::ToggleReactive => {
                         if state.reactive_active {
                             // Disable reactive mode
@@ -282,27 +316,37 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                             if let Some(screen) = b.as_screen() {
                                 let _ = screen.set_screen("image");
                             }
-                            let board_name = b.info().name.to_lowercase();
-                            let search = format!("{board_name} keyboard");
-                            reactive_stream = evdev::enumerate().find_map(|(_, device)| {
-                                let name = device.name()?.to_string();
-                                let name_lower = name.to_lowercase();
-                                // Must contain board name + "keyboard" suffix
-                                if name_lower.contains(&search) {
-                                    device
-                                        .into_event_stream()
-                                        .map(|s| Box::pin(s.timeout(Duration::from_millis(500))))
-                                        .ok()
-                                } else {
-                                    None
-                                }
-                            });
+                            #[cfg(target_os = "linux")]
+                            {
+                                let board_name = b.info().name.to_lowercase();
+                                let search = format!("{board_name} keyboard");
+                                reactive_stream = evdev::enumerate().find_map(|(_, device)| {
+                                    let name = device.name()?.to_string();
+                                    let name_lower = name.to_lowercase();
+                                    // Must contain board name + "keyboard" suffix
+                                    if name_lower.contains(&search) {
+                                        device
+                                            .into_event_stream()
+                                            .map(|s| {
+                                                Box::pin(s.timeout(Duration::from_millis(500)))
+                                            })
+                                            .ok()
+                                    } else {
+                                        None
+                                    }
+                                });
+                            }
+                            #[cfg(target_os = "macos")]
+                            {
+                                reactive_stream = keys_macos::open(Duration::from_millis(500));
+                            }
                             if reactive_stream.is_some() {
                                 state.reactive_active = true;
                                 state.config.general.initial_screen = "reactive".into();
                                 let _ = state.config.save();
                                 println!("reactive mode enabled");
                             } else {
+                                #[cfg(target_os = "linux")]
                                 eprintln!("reactive mode: no input device found (are you in the 'input' group?)");
                             }
                         }
@@ -324,39 +368,49 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                             gpu = Some(Either::Left(GpuTemp::new(state.config.system_info.gpu_device)));
                         }
 
-                        // Initialize reactive mode if configured (Linux only)
-                        #[cfg(target_os = "linux")]
+                        // Initialize reactive mode if configured (Linux and macOS)
+                        #[cfg(any(target_os = "linux", target_os = "macos"))]
                         if state.config.general.initial_screen == "reactive" {
                             println!("initializing reactive mode");
                             if let Some(screen) = b.as_screen() {
                                 let _ = screen.set_screen("image");
                             }
-                            let board_name = b.info().name.to_lowercase();
-                            reactive_stream = evdev::enumerate().find_map(|(_, device)| {
-                                let name = device.name()?.to_string();
-                                let name_lower = name.to_lowercase();
-                                // Must contain board name + "keyboard" suffix
-                                if name_lower.contains(&format!("{board_name} keyboard")) {
-                                    device
-                                        .into_event_stream()
-                                        .map(|s| Box::pin(s.timeout(Duration::from_millis(500))))
-                                        .ok()
-                                } else {
-                                    None
-                                }
-                            });
+                            #[cfg(target_os = "linux")]
+                            {
+                                let board_name = b.info().name.to_lowercase();
+                                reactive_stream = evdev::enumerate().find_map(|(_, device)| {
+                                    let name = device.name()?.to_string();
+                                    let name_lower = name.to_lowercase();
+                                    // Must contain board name + "keyboard" suffix
+                                    if name_lower.contains(&format!("{board_name} keyboard")) {
+                                        device
+                                            .into_event_stream()
+                                            .map(|s| {
+                                                Box::pin(s.timeout(Duration::from_millis(500)))
+                                            })
+                                            .ok()
+                                    } else {
+                                        None
+                                    }
+                                });
+                            }
+                            #[cfg(target_os = "macos")]
+                            {
+                                reactive_stream = keys_macos::open(Duration::from_millis(500));
+                            }
                             if reactive_stream.is_some() {
                                 state.reactive_active = true;
                                 println!("reactive mode enabled");
                             } else {
+                                #[cfg(target_os = "linux")]
                                 eprintln!("reactive mode: no input device found (are you in the 'input' group?)");
                             }
                         }
 
                         // Set initial screen if configured (skip for reactive mode)
-                        #[cfg(target_os = "linux")]
+                        #[cfg(any(target_os = "linux", target_os = "macos"))]
                         let skip_initial = state.config.general.initial_screen == "reactive";
-                        #[cfg(not(target_os = "linux"))]
+                        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
                         let skip_initial = false;
 
                         if !skip_initial {
@@ -400,7 +454,7 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                         Err(e) => {
                             eprintln!("weather update failed: {e}");
                             // Check if board disconnected
-                            if e.to_string().contains("device") {
+                            if e.to_string().to_lowercase().contains("device") {
                                 handle_disconnect(&mut board, &mut state, &menu_items);
                             }
                         }
@@ -420,7 +474,7 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                             None,
                         ) {
                             eprintln!("system update failed: {e}");
-                            if e.to_string().contains("device") {
+                            if e.to_string().to_lowercase().contains("device") {
                                 handle_disconnect(&mut board, &mut state, &menu_items);
                             }
                         }
@@ -433,14 +487,14 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                 if let Some(ref mut b) = board {
                     if let Err(e) = crate::apply_time(b.as_mut(), state.config.general.use_12hr_time) {
                         eprintln!("time sync failed: {e}");
-                        if e.to_string().contains("device") {
+                        if e.to_string().to_lowercase().contains("device") {
                             handle_disconnect(&mut board, &mut state, &menu_items);
                         }
                     }
                 }
             }
 
-            // Reactive mode keypress handling (Linux only)
+            // Reactive mode keypress handling (Linux and macOS)
             Some(Some(res)) = OptionFuture::from(reactive_stream.as_mut().map(|s| s.next())), if board.is_some() => {
                 match res {
                     Ok(Err(e)) => {
@@ -455,6 +509,15 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                                 if let Some(screen) = b.as_screen() {
                                     let _ = screen.screen_switch();
                                 }
+                            }
+                        }
+                    }
+                    #[cfg(target_os = "macos")]
+                    Ok(Ok(())) if !is_reactive_running => {
+                        is_reactive_running = true;
+                        if let Some(ref mut b) = board {
+                            if let Some(screen) = b.as_screen() {
+                                let _ = screen.screen_switch();
                             }
                         }
                     }
@@ -478,8 +541,8 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
 enum CommandResult {
     Continue,
     Quit,
-    /// Toggle reactive mode on/off (Linux only)
-    #[cfg(target_os = "linux")]
+    /// Toggle reactive mode on/off (Linux and macOS)
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     ToggleReactive,
 }
 
@@ -496,8 +559,8 @@ async fn handle_command(
         TrayCommand::Quit => return CommandResult::Quit,
 
         TrayCommand::SetScreen(id) => {
-            // Handle reactive mode specially (Linux only)
-            #[cfg(target_os = "linux")]
+            // Handle reactive mode specially (Linux and macOS)
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
             if id == "reactive" {
                 return CommandResult::ToggleReactive;
             }

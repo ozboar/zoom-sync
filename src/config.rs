@@ -87,7 +87,7 @@ pub struct GeneralConfig {
     pub fahrenheit: bool,
     /// Use 12-hour time format
     pub use_12hr_time: bool,
-    /// Initial screen position on connect (use "reactive" for reactive mode on Linux)
+    /// Initial screen position on connect (use "reactive" for reactive mode on Linux and macOS)
     pub initial_screen: String,
 }
 
