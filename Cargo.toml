@@ -65,3 +65,8 @@ gtk = "0.18"  # required for tray icon initialization
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging"] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSEvent", "NSResponder", "NSRunningApplication"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSDate", "NSString", "NSThread", "NSObjCRuntime", "NSRunLoop"] }
+
