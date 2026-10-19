@@ -395,9 +395,9 @@ impl HasImage for ZoomTklDyna {
     }
 
     fn clear_image(&mut self) -> Result<()> {
-        // Send empty termination to clear
-        let packet = abi::image_end();
-        self.execute(packet)
+        Err(BoardError::CommandFailed(
+            "clearing media is not supported on this board",
+        ))
     }
 }
 
@@ -409,7 +409,9 @@ impl HasGif for ZoomTklDyna {
     }
 
     fn clear_gif(&mut self) -> Result<()> {
-        self.restart_screen()
+        Err(BoardError::CommandFailed(
+            "clearing media is not supported on this board",
+        ))
     }
 }
 
