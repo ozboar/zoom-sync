@@ -82,9 +82,7 @@ pub struct Zoom98 {
 mod protocol {
     /// Command identifiers for the zoom98 LCD protocol.
     pub mod cmd {
-        /// Time sync (hours/minutes/seconds + calendar fields)
-        pub const TIME: u8 = 0x3E;
-        /// Date sync (same 8-byte calendar body as TIME, different subcmd)
+        /// Date and time sync (full calendar + clock body)
         pub const DATE: u8 = 0x3F;
         /// CPU temperature (u16 BE Celsius)
         pub const CPU_TEMP: u8 = 0x37;
@@ -125,7 +123,7 @@ mod protocol {
     /// from the Tiga protocol, which skips the magic).
     pub fn build_packet(cmd_byte: u8, body: &[u8]) -> [u8; 32] {
         let body_len = body.len();
-        // Wire size field = 4 + body_len + 1 (matches observed values: date/time=15,
+        // Wire size field = 4 + body_len + 1 (matches observed values: date=15,
         // cpu/gpu/fan=8, weather=9, network=10)
         let size_field = (4 + body_len + 1) as u8;
 
@@ -152,52 +150,10 @@ mod protocol {
         packet
     }
 
-    /// Build a datetime body. The calendar fields (year..weekday) are identical for
-    /// TIME and DATE commands; only the sub-command byte (`sub`) and the outer cmd
-    /// byte differ.
+    /// Build a date-sync packet (cmd 0x3F, sub 0x01). Carries both date and time.
     ///
     /// Weekday encoding: Monday=1..Sunday=7 (i.e. `weekday_mon0 + 1`), different from
     /// the Tiga protocol's Sunday=0..Saturday=6.
-    #[allow(clippy::too_many_arguments)]
-    fn datetime_body(
-        sub: u8,
-        year: u16,
-        month: u8,
-        day: u8,
-        hour: u8,
-        minute: u8,
-        second: u8,
-        weekday_mon1: u8,
-    ) -> [u8; 10] {
-        [
-            0x00,
-            sub,
-            (year >> 8) as u8,
-            (year & 0xFF) as u8,
-            month,
-            day,
-            hour,
-            minute,
-            second,
-            weekday_mon1,
-        ]
-    }
-
-    /// Build a time-sync packet (cmd 0x3E, sub 0x00).
-    pub fn time(
-        year: u16,
-        month: u8,
-        day: u8,
-        hour: u8,
-        minute: u8,
-        second: u8,
-        weekday_mon1: u8,
-    ) -> [u8; 32] {
-        let body = datetime_body(0x00, year, month, day, hour, minute, second, weekday_mon1);
-        build_packet(cmd::TIME, &body)
-    }
-
-    /// Build a date-sync packet (cmd 0x3F, sub 0x01).
     pub fn date(
         year: u16,
         month: u8,
@@ -207,7 +163,18 @@ mod protocol {
         second: u8,
         weekday_mon1: u8,
     ) -> [u8; 32] {
-        let body = datetime_body(0x01, year, month, day, hour, minute, second, weekday_mon1);
+        let body = [
+            0x00,
+            0x01,
+            (year >> 8) as u8,
+            (year & 0xFF) as u8,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            weekday_mon1,
+        ];
         build_packet(cmd::DATE, &body)
     }
 
@@ -333,9 +300,6 @@ impl Zoom98 {
     }
 
     /// Sync the current date and time to the keyboard display.
-    ///
-    /// This sends **two** packets: one with the DATE command and one with the TIME
-    /// command, matching how the Wuque companion app drives the board.
     pub fn set_time<Tz: TimeZone>(&mut self, time: DateTime<Tz>, _12hr: bool) -> Result<()> {
         // weekday: Wuque Studio sends +1 so Mon=1..Sun=7.
         let weekday_mon1 = time.weekday().num_days_from_monday() as u8 + 1;
@@ -346,10 +310,15 @@ impl Zoom98 {
         let minute = time.minute() as u8;
         let second = time.second() as u8;
 
-        let date_packet = protocol::date(year, month, day, hour, minute, second, weekday_mon1);
-        self.execute(date_packet)?;
-        let time_packet = protocol::time(year, month, day, hour, minute, second, weekday_mon1);
-        self.execute(time_packet)
+        self.execute(protocol::date(
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            weekday_mon1,
+        ))
     }
 
     /// Update the weather display. Only the current temperature is shown on the
@@ -436,7 +405,7 @@ impl HasSystemInfo for Zoom98 {
 
 #[cfg(test)]
 mod tests {
-    use super::protocol::{build_packet, crc16, date, time};
+    use super::protocol::{build_packet, crc16, date};
 
     /// Canonical CCITT-FALSE test vector.
     #[test]
@@ -463,20 +432,6 @@ mod tests {
         assert_eq!(pkt[22] as u32, (expected_cs ^ 0xFF) & 0xFF);
     }
 
-    /// Time and date packets share the same calendar body but differ on cmd byte
-    /// and the `sub` byte inside the body.
-    #[test]
-    fn time_vs_date_differ_only_by_cmd_and_sub() {
-        let t = time(2026, 4, 11, 16, 42, 9, 6);
-        let d = date(2026, 4, 11, 16, 42, 9, 6);
-        assert_eq!(t[9], 0x3E);
-        assert_eq!(d[9], 0x3F);
-        assert_eq!(t[13], 0x00); // time sub-command
-        assert_eq!(d[13], 0x01); // date sub-command
-                                 // All other body bytes match
-        assert_eq!(&t[14..22], &d[14..22]);
-    }
-
     /// build_packet with a short body should place the inner checksum right after
     /// the body and leave the rest zero-padded.
     #[test]
@@ -497,7 +452,7 @@ mod tests {
     /// the CRC bytes zeroed out should still equal the stamped value.
     #[test]
     fn outer_crc_roundtrip() {
-        let pkt = time(2026, 4, 11, 16, 42, 9, 6);
+        let pkt = date(2026, 4, 11, 16, 42, 9, 6);
         let stamped = u16::from_le_bytes([pkt[6], pkt[7]]);
         let mut zeroed = pkt;
         zeroed[6] = 0;
