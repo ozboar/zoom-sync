@@ -18,10 +18,14 @@ use crate::types::{Rgb565, ScreenMode, WeatherIcon};
 
 /// Command identifiers
 pub mod cmd {
+    /// Screen restart command
+    pub const RESTART: u8 = 0x34;
     /// DateTime sync command
     pub const DATETIME: u8 = 0x38;
     /// Screen control command
     pub const SCREEN: u8 = 0x39;
+    /// Device info query command
+    pub const INFO: u8 = 0xFB;
     /// Image upload command
     pub const IMAGE: u8 = 0xFC;
     /// Theme settings command
@@ -110,6 +114,16 @@ pub fn datetime(
 /// Build a screen control packet.
 pub fn screen_control(mode: ScreenMode) -> [u8; 33] {
     build_packet(cmd::SCREEN, &mode.to_bytes(), 0x02)
+}
+
+/// Build a screen restart packet.
+pub fn restart() -> [u8; 33] {
+    build_packet(cmd::RESTART, &[0x00, 0x01], 0x02)
+}
+
+/// Build a device info query packet. The response carries the device mac address.
+pub fn info() -> [u8; 33] {
+    build_packet(cmd::INFO, &[0x00], 0x02)
 }
 
 /// Build a theme settings packet.

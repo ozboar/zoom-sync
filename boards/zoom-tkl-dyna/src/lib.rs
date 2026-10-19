@@ -159,7 +159,7 @@ impl ZoomTklDyna {
     pub fn open() -> Result<Self> {
         API.write().unwrap().refresh_devices()?;
         let api = API.read().unwrap();
-        let this = Self {
+        let mut this = Self {
             device: api
                 .device_list()
                 .find(|d| {
@@ -172,6 +172,9 @@ impl ZoomTklDyna {
                 .open_device(&api)?,
             buf: [0u8; 64],
         };
+
+        // Same info query the web driver sends on connect
+        this.execute(abi::info())?;
 
         Ok(this)
     }
@@ -267,9 +270,11 @@ impl ZoomTklDyna {
         self.screen_control(ScreenMode::Return)
     }
 
-    /// Reset themes, gifs and images.
-    pub fn screen_reset(&mut self) -> Result<()> {
-        self.screen_control(ScreenMode::Reset)
+    /// Restart the screen module.
+    pub fn restart_screen(&mut self) -> Result<()> {
+        self.execute(abi::restart())?;
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        self.execute(abi::info())
     }
 
     /// Upload an image to the keyboard screen.
@@ -306,7 +311,7 @@ impl ZoomTklDyna {
 
     /// Clear the GIF/animation from the screen.
     pub fn clear_gif(&mut self) -> Result<()> {
-        self.screen_reset()
+        self.restart_screen()
     }
 }
 
