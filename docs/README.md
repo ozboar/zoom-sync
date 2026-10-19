@@ -21,7 +21,7 @@
 
 Cross-platform utility for syncing Zoom keyboard screen modules
 
-**Usage**: **`zoom-sync`** \[**`--auto`** | **`--zoom65v3`** | **`--zoom-tkl-dyna`**\] \[_`COMMAND ...`_\]
+**Usage**: **`zoom-sync`** \[**`--auto`** | **`--zoom65v3`** | **`--zoom-tkl-dyna`** | **`--zoom75-tiga`**\] \[_`COMMAND ...`_\]
 
 
 
@@ -32,6 +32,8 @@ Cross-platform utility for syncing Zoom keyboard screen modules
   Zoom65 V3
 - **`    --zoom-tkl-dyna`** &mdash; 
   Zoom TKL Dyna
+- **`    --zoom75-tiga`** &mdash; 
+  Zoom75 Tiga
 
 
 

@@ -27,17 +27,17 @@ Cross-platform utility to sync Meletrix Zoom Keyboard screen modules.
 
 ## Supported Boards
 
-| Feature             | Zoom65 V3          | Zoom TKL Dyna          |
-| ------------------- | ------------------ | ---------------------- |
-| Screen size         | 110x110            | 320x172                |
-| Time sync           | Yes                | Yes                    |
-| Weather             | Yes                | Yes                    |
-| System info         | Yes (CPU/GPU/DL)   | Yes (CPU/GPU/Fan/DL)   |
-| Screen control      | Yes                | Navigation only        |
-| Image upload        | Yes                | Yes (no clear)         |
-| GIF upload          | Yes                | Yes (no clear/delays)  |
-| Theme customization | Yes (Presets)      | Yes (Colors + Presets) |
-| 12hr time format    | Yes (simulated)    | No                     |
+| Feature             | Zoom65 V3          | Zoom TKL Dyna          | Zoom75 Tiga            |
+| ------------------- | ------------------ | ---------------------- | ---------------------- |
+| Screen size         | 110x110            | 320x172                | 320x172                |
+| Time sync           | Yes                | Yes                    | Yes                    |
+| Weather             | Yes                | Yes                    | Yes                    |
+| System info         | Yes (CPU/GPU/DL)   | Yes (CPU/GPU/Fan/DL)   | Yes (CPU/GPU/Fan/DL)   |
+| Screen control      | Yes                | Navigation only        | Navigation only        |
+| Image upload        | Yes                | Yes (no clear)         | Yes (no clear)         |
+| GIF upload          | Yes                | Yes (no clear/delays)  | Yes (no clear/delays)  |
+| Theme customization | Yes (Presets)      | Yes (Colors + Presets) | Yes (Colors + Presets) |
+| 12hr time format    | Yes (simulated)    | No                     | No                     |
 
 ## Third Party Services
 

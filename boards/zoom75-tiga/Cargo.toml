@@ -1,0 +1,14 @@
+[package]
+name = "zoom75-tiga"
+version = "0.1.0"
+description = "Reverse engineered hidapi bindings to zoom75-tiga screen modules"
+repository = "https://github.com/ozwaldorf/zoom-sync"
+authors = [ "ozwaldorf <self@ossian.dev>" ]
+license = "MIT"
+edition = "2021"
+
+[dependencies]
+zoom-sync-core = { path = "../core", version = "0.1" }
+zoom-tiga-protocol = { path = "../tiga-protocol", version = "0.1" }
+hidapi = { workspace = true }
+chrono = { workspace = true }

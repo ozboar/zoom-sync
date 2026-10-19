@@ -4508,6 +4508,7 @@ dependencies = [
  "zoom-sync-core",
  "zoom-tkl-dyna",
  "zoom65v3",
+ "zoom75-tiga",
 ]
 
 [[package]]
@@ -4520,14 +4521,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "zoom-tiga-protocol"
+version = "0.1.0"
+dependencies = [
+ "hidapi",
+ "image",
+ "rayon",
+ "zoom-sync-core",
+]
+
+[[package]]
 name = "zoom-tkl-dyna"
 version = "0.1.0"
 dependencies = [
  "chrono",
  "hidapi",
- "image",
- "rayon",
  "zoom-sync-core",
+ "zoom-tiga-protocol",
 ]
 
 [[package]]
@@ -4537,6 +4547,16 @@ dependencies = [
  "chrono",
  "hidapi",
  "zoom-sync-core",
+]
+
+[[package]]
+name = "zoom75-tiga"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hidapi",
+ "zoom-sync-core",
+ "zoom-tiga-protocol",
 ]
 
 [[package]]

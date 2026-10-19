@@ -1,4 +1,4 @@
-//! HID packet protocol implementation for Zoom TKL Dyna.
+//! HID packet protocol implementation for Tiga-based keyboards.
 //!
 //! Packet structure (32 bytes, sent behind a 0x00 report id):
 //! - Byte 0: 0x1C (report type)
