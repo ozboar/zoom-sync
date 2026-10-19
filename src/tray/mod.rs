@@ -277,7 +277,7 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                             state.config.general.initial_screen = "meletrix".into();
                             let _ = state.config.save();
                             println!("reactive mode disabled");
-                        } else if let Some(ref mut b) = board {
+                        } else if let Some(ref mut b) = board.as_mut().filter(|b| b.info().capabilities.screen_pos) {
                             // Enable reactive mode
                             if let Some(screen) = b.as_screen_pos() {
                                 let _ = screen.set_screen("image");
@@ -326,7 +326,7 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
 
                         // Initialize reactive mode if configured (Linux only)
                         #[cfg(target_os = "linux")]
-                        if state.config.general.initial_screen == "reactive" {
+                        if state.config.general.initial_screen == "reactive" && b.info().capabilities.screen_pos {
                             println!("initializing reactive mode");
                             if let Some(screen) = b.as_screen_pos() {
                                 let _ = screen.set_screen("image");
