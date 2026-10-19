@@ -8,7 +8,7 @@
 
 use std::io::Cursor;
 use std::sync::{LazyLock, RwLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Datelike, Local, TimeZone, Timelike};
 use hidapi::{HidApi, HidDevice};
@@ -64,6 +64,12 @@ pub const SCREEN_HEIGHT: u32 = 172;
 const MEDIA_HEADER_LEN: usize = 452;
 /// Bytes of media data carried by each upload page
 const PAGE_SIZE: usize = 16;
+/// How long to wait for a reply to regular commands
+const COMMAND_TIMEOUT: Duration = Duration::from_millis(100);
+/// How long to wait for an upload page to be acknowledged before resending
+const UPLOAD_TIMEOUT: Duration = Duration::from_secs(1);
+/// Number of times an upload page is sent before giving up
+const UPLOAD_ATTEMPTS: usize = 3;
 
 /// Media upload header. Contents are static regardless of frame count.
 fn media_header() -> [u8; MEDIA_HEADER_LEN] {
@@ -150,12 +156,51 @@ impl ZoomTklDyna {
         Ok(this)
     }
 
-    /// Internal method to execute a packet and optionally read the response
+    /// Wait for a reply to `command`, discarding unrelated input reports.
+    /// Returns false if the timeout elapsed without a reply.
+    fn wait_for(&mut self, command: u8, timeout: Duration) -> Result<bool> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Ok(false);
+            }
+            let len = self
+                .device
+                .read_timeout(&mut self.buf, remaining.as_millis().max(1) as i32)?;
+            if len == 0 {
+                return Ok(false);
+            }
+            if len > 9 && self.buf[0] == 0x1C && self.buf[9] == command {
+                return Ok(true);
+            }
+        }
+    }
+
+    /// Discard any pending input reports.
+    fn drain(&mut self) -> Result<()> {
+        while self.device.read_timeout(&mut self.buf, 0)? > 0 {}
+        Ok(())
+    }
+
+    /// Internal method to send a packet and consume its reply, if any
     fn execute(&mut self, packet: [u8; 33]) -> Result<()> {
         self.device.write(&packet)?;
-        // Read response if available
-        let _ = self.device.read_timeout(&mut self.buf, 100);
+        self.wait_for(packet[10], COMMAND_TIMEOUT)?;
         Ok(())
+    }
+
+    /// Send an upload packet, resending until the device acknowledges it
+    fn execute_upload(&mut self, packet: [u8; 33]) -> Result<()> {
+        for _ in 0..UPLOAD_ATTEMPTS {
+            self.device.write(&packet)?;
+            if self.wait_for(abi::cmd::IMAGE, UPLOAD_TIMEOUT)? {
+                return Ok(());
+            }
+        }
+        Err(BoardError::CommandFailed(
+            "device did not acknowledge upload",
+        ))
     }
 
     /// Sync the current date and time to the keyboard display.
@@ -264,13 +309,14 @@ impl ZoomTklDyna {
         data.extend_from_slice(&media_header());
         data.extend_from_slice(frames);
 
+        self.drain()?;
         let page_count = data.len().div_ceil(PAGE_SIZE);
         for (page_index, chunk) in data.chunks(PAGE_SIZE).enumerate() {
             cb(page_index);
             // The page index wraps past u16::MAX, matching the web driver
-            self.execute(abi::image_chunk(page_index as u16, chunk))?;
+            self.execute_upload(abi::image_chunk(page_index as u16, chunk))?;
         }
-        self.execute(abi::image_end())?;
+        self.execute_upload(abi::image_end())?;
 
         cb(page_count);
         Ok(())
