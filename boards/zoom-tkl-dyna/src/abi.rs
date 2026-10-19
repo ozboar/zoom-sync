@@ -22,7 +22,7 @@ pub mod cmd {
     pub const RESTART: u8 = 0x34;
     /// DateTime sync command
     pub const DATETIME: u8 = 0x38;
-    /// Screen control command
+    /// Screen navigation command
     pub const SCREEN: u8 = 0x39;
     /// Device info query command
     pub const INFO: u8 = 0xFB;
@@ -111,9 +111,9 @@ pub fn datetime(
     build_packet(cmd::DATETIME, &payload, 0x03)
 }
 
-/// Build a screen control packet.
+/// Build a screen navigation packet.
 pub fn screen_control(mode: ScreenMode) -> [u8; 33] {
-    build_packet(cmd::SCREEN, &mode.to_bytes(), 0x02)
+    build_packet(cmd::SCREEN, &[0x00, mode as u8], 0x02)
 }
 
 /// Build a screen restart packet.
@@ -217,6 +217,14 @@ mod tests {
         zeroed[6] = 0;
         zeroed[7] = 0;
         assert_eq!(u16::from_le_bytes([p[6], p[7]]), crc16(&zeroed));
+    }
+
+    #[test]
+    fn screen_packet_matches_reference() {
+        // Hand built "up" packet from the web driver
+        let p = &screen_control(ScreenMode::Up)[1..];
+        assert_eq!(p[5], 7);
+        assert_eq!(&p[9..15], &[0x39, 0x00, 0x02, 0x00, 0x01, 0xC3]);
     }
 
     #[test]

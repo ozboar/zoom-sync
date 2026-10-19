@@ -244,7 +244,7 @@ impl ZoomTklDyna {
         self.execute(packet)
     }
 
-    /// Send a screen control command.
+    /// Send a screen navigation command.
     pub fn screen_control(&mut self, mode: ScreenMode) -> Result<()> {
         let packet = abi::screen_control(mode);
         self.execute(packet)
