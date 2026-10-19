@@ -21,8 +21,6 @@ pub enum ScreenArgs {
         /// Reset and move the screen to a specific position.
         /// Zoom65v3:
         /// [cpu|gpu|download|time|weather|meletrix|zoom65|image|gif|battery]
-        /// Zoom TKL DYNA:
-        /// [up|down|enter|return]
         #[bpaf(short('s'), long("screen"), argument("POSITION"))]
         ScreenPositionId,
     ),
