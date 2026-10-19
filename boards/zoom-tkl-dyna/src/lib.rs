@@ -7,13 +7,13 @@
 //! Screen size: 320x172 pixels, RGB565 format.
 
 use std::io::Cursor;
-use std::sync::atomic::AtomicU16;
 use std::sync::{LazyLock, RwLock};
+use std::time::Duration;
 
 use chrono::{DateTime, Datelike, Local, TimeZone, Timelike};
 use hidapi::{HidApi, HidDevice};
 use image::codecs::gif::GifDecoder;
-use image::AnimationDecoder;
+use image::{imageops, AnimationDecoder};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use types::{encode_temperature, Rgb565, ScreenMode, WeatherIcon};
 use zoom_sync_core::{
@@ -60,88 +60,59 @@ pub static INFO: BoardInfo = BoardInfo {
 pub const SCREEN_WIDTH: u32 = 320;
 pub const SCREEN_HEIGHT: u32 = 172;
 
-/// Encode a raw GIF buffer as RGB565 with frame delays for TKL Dyna.
-///
-/// Output format:
-/// - 2 bytes: frame count (u16 BE)
-/// - 2 bytes per frame: delay in centiseconds (u16 BE)
-/// - Then: RGB565+alpha data for all frames (concatenated)
-///
-/// The callback receives (current_frame, total_frames) for progress updates.
-pub fn encode_gif(
-    gif_data: &[u8],
-    background: [u8; 3],
-    nearest: bool,
-    cb: impl Fn(usize, usize) + Sync,
-) -> Option<Vec<u8>> {
-    let decoder = GifDecoder::new(Cursor::new(gif_data)).ok()?;
-    let frames = decoder.into_frames().collect_frames().ok()?;
-    let frame_count = frames.len();
-    let [br, bg, bb] = background;
+/// Size of the header prepended to uploaded media
+const MEDIA_HEADER_LEN: usize = 452;
+/// Bytes of media data carried by each upload page
+const PAGE_SIZE: usize = 16;
 
-    let filter = if nearest {
-        image::imageops::FilterType::Nearest
-    } else {
-        image::imageops::FilterType::Gaussian
-    };
+/// Media upload header. Contents are static regardless of frame count.
+fn media_header() -> [u8; MEDIA_HEADER_LEN] {
+    let mut header = [0u8; MEDIA_HEADER_LEN];
+    header[360..364].copy_from_slice(&(MEDIA_HEADER_LEN as u32).to_le_bytes());
+    header[400] = 1;
+    header[403] = 1;
+    header
+}
 
-    // Extract delays (in centiseconds) and encode frames
-    let completed = AtomicU16::new(1);
-    let encoded_frames: Vec<(u16, Vec<u8>)> = frames
+/// Convert a screen sized RGBA frame into little-endian RGB565, ignoring alpha.
+fn encode_frame(frame: &image::RgbaImage) -> Vec<u8> {
+    frame
+        .pixels()
+        .flat_map(|p| {
+            let [r, g, b, _] = p.0;
+            Rgb565::from_rgb(r, g, b).to_le_bytes()
+        })
+        .collect()
+}
+
+/// Re-encode a GIF as concatenated screen sized RGB565 little-endian frames.
+///
+/// Frames larger than the screen are cropped from the top left corner, smaller frames are
+/// resized to fit. Frame delays are not supported by the device.
+pub fn encode_gif(gif_data: &[u8]) -> Option<Vec<u8>> {
+    let frames = GifDecoder::new(Cursor::new(gif_data))
+        .ok()?
+        .into_frames()
+        .collect_frames()
+        .ok()?;
+    let encoded: Vec<Vec<u8>> = frames
         .par_iter()
         .map(|frame| {
-            // Get delay in centiseconds
-            let delay = frame.delay();
-            let (numer, denom) = delay.numer_denom_ms();
-            let delay_cs = ((numer / denom) / 10) as u16;
-
-            // Resize and encode frame as RGB565
-            let resized =
-                image::imageops::resize(frame.buffer(), SCREEN_WIDTH, SCREEN_HEIGHT, filter);
-            let buf: Vec<u8> = resized
-                .pixels()
-                .flat_map(|p| {
-                    let [mut r, mut g, mut b, a] = p.0;
-
-                    // Mix alpha values against background
-                    let a = a as f64 / 255.0;
-                    let ba = 1. - a;
-                    r = ((br as f64 * ba) + (r as f64 * a)) as u8;
-                    g = ((bg as f64 * ba) + (g as f64 * a)) as u8;
-                    b = ((bb as f64 * ba) + (b as f64 * a)) as u8;
-
-                    // Convert into rgb565 pixel type
-                    let [x, y] = rgb565::Rgb565::from_rgb888_components(r, g, b).to_rgb565_be();
-
-                    // Extend with hard coded alpha channel
-                    [x, y, 0xff]
-                })
-                .collect();
-
-            let i = completed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            cb(i as usize, frame_count);
-
-            (delay_cs, buf)
+            let buf = frame.buffer();
+            let frame = if buf.width() >= SCREEN_WIDTH && buf.height() >= SCREEN_HEIGHT {
+                imageops::crop_imm(buf, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT).to_image()
+            } else {
+                imageops::resize(
+                    buf,
+                    SCREEN_WIDTH,
+                    SCREEN_HEIGHT,
+                    imageops::FilterType::Gaussian,
+                )
+            };
+            encode_frame(&frame)
         })
         .collect();
-
-    // Build output: header + delays + frame data
-    let mut output = Vec::new();
-
-    // Frame count (2 bytes, BE)
-    output.extend_from_slice(&(frame_count as u16).to_be_bytes());
-
-    // Frame delays (2 bytes each, BE)
-    for (delay, _) in &encoded_frames {
-        output.extend_from_slice(&delay.to_be_bytes());
-    }
-
-    // Frame data (concatenated)
-    for (_, data) in encoded_frames {
-        output.extend(data);
-    }
-
-    Some(output)
+    Some(encoded.concat())
 }
 
 /// Lazy handle to hidapi
@@ -273,45 +244,36 @@ impl ZoomTklDyna {
     /// Restart the screen module.
     pub fn restart_screen(&mut self) -> Result<()> {
         self.execute(abi::restart())?;
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        std::thread::sleep(Duration::from_millis(100));
         self.execute(abi::info())
     }
 
-    /// Upload an image to the keyboard screen.
+    /// Upload media to the keyboard screen.
     ///
-    /// The image data should be in RGB565 format.
-    /// Screen size is 320x172 pixels.
-    pub fn upload_image(&mut self, data: &[u8], cb: &mut dyn FnMut(usize)) -> Result<()> {
-        const CHUNK_SIZE: usize = 16;
-        let page_count = data.len().div_ceil(CHUNK_SIZE);
-
-        // Send each chunk
-        for (page_index, chunk) in data.chunks(CHUNK_SIZE).enumerate() {
-            cb(page_index);
-            let packet = abi::image_chunk(page_index as u16, chunk);
-            self.execute(packet)?;
+    /// `frames` is one or more concatenated 320x172 frames of little-endian RGB565 pixels.
+    /// The callback receives the current page index.
+    pub fn upload_media(&mut self, frames: &[u8], cb: &mut dyn FnMut(usize)) -> Result<()> {
+        let frame_len = (SCREEN_WIDTH * SCREEN_HEIGHT * 2) as usize;
+        if frames.is_empty() || !frames.len().is_multiple_of(frame_len) {
+            return Err(BoardError::InvalidMedia(
+                "data is not a whole number of frames",
+            ));
         }
 
-        // Send termination packet
-        let packet = abi::image_end();
-        self.execute(packet)?;
+        let mut data = Vec::with_capacity(MEDIA_HEADER_LEN + frames.len());
+        data.extend_from_slice(&media_header());
+        data.extend_from_slice(frames);
+
+        let page_count = data.len().div_ceil(PAGE_SIZE);
+        for (page_index, chunk) in data.chunks(PAGE_SIZE).enumerate() {
+            cb(page_index);
+            // The page index wraps past u16::MAX, matching the web driver
+            self.execute(abi::image_chunk(page_index as u16, chunk))?;
+        }
+        self.execute(abi::image_end())?;
 
         cb(page_count);
         Ok(())
-    }
-
-    /// Upload a RGB565 animation to the keyboard screen.
-    ///
-    /// The data should be encoded with frame count, delays, and RGB565 frame data.
-    /// Format: [2 bytes frame count BE] + [2 bytes per frame delay BE] + [frame data...]
-    pub fn upload_565_animation(&mut self, data: &[u8], cb: &mut dyn FnMut(usize)) -> Result<()> {
-        // Animation uses the same upload mechanism as images
-        self.upload_image(data, cb)
-    }
-
-    /// Clear the GIF/animation from the screen.
-    pub fn clear_gif(&mut self) -> Result<()> {
-        self.restart_screen()
     }
 }
 
@@ -378,7 +340,12 @@ impl HasScreenNavigation for ZoomTklDyna {
 
 impl HasImage for ZoomTklDyna {
     fn upload_image(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()> {
-        ZoomTklDyna::upload_image(self, data, progress)
+        // Input is big-endian RGB565 with a trailing alpha byte per pixel
+        if data.len() != (SCREEN_WIDTH * SCREEN_HEIGHT * 3) as usize {
+            return Err(BoardError::InvalidMedia("image does not match screen size"));
+        }
+        let frame: Vec<u8> = data.chunks_exact(3).flat_map(|p| [p[1], p[0]]).collect();
+        self.upload_media(&frame, progress)
     }
 
     fn clear_image(&mut self) -> Result<()> {
@@ -390,14 +357,13 @@ impl HasImage for ZoomTklDyna {
 
 impl HasGif for ZoomTklDyna {
     fn upload_gif(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()> {
-        // Re-encode standard GIF to RGB565 format
-        let encoded = encode_gif(data, [0, 0, 0], false, |_, _| {})
-            .ok_or(BoardError::InvalidMedia("failed to encode gif to rgb565"))?;
-        self.upload_565_animation(&encoded, progress)
+        let encoded =
+            encode_gif(data).ok_or(BoardError::InvalidMedia("failed to encode gif to rgb565"))?;
+        self.upload_media(&encoded, progress)
     }
 
     fn clear_gif(&mut self) -> Result<()> {
-        ZoomTklDyna::clear_gif(self)
+        self.restart_screen()
     }
 }
 
@@ -431,5 +397,25 @@ impl HasSystemInfo for ZoomTklDyna {
             download,
             fan_rpm.try_into().unwrap_or(u16::MAX),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn media_header_matches_reference() {
+        let header = media_header();
+        assert_eq!(&header[360..364], &[196, 1, 0, 0]);
+        assert_eq!(header[400], 1);
+        assert_eq!(header[403], 1);
+        assert_eq!(header.iter().filter(|&&b| b != 0).count(), 4);
+    }
+
+    #[test]
+    fn frame_is_little_endian() {
+        let frame = image::RgbaImage::from_pixel(1, 1, [255, 0, 0, 255].into());
+        assert_eq!(encode_frame(&frame), vec![0x00, 0xF8]);
     }
 }

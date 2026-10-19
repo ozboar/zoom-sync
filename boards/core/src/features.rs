@@ -83,6 +83,8 @@ pub trait HasScreenNavigation {
 
 /// Static image upload capability
 pub trait HasImage {
+    /// Upload an image sized to the board's screen, encoded as big-endian RGB565 followed by
+    /// an alpha byte for each pixel.
     fn upload_image(&mut self, data: &[u8], progress: &mut dyn FnMut(usize)) -> Result<()>;
     fn clear_image(&mut self) -> Result<()>;
 }

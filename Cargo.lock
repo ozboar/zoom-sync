@@ -4527,7 +4527,6 @@ dependencies = [
  "hidapi",
  "image",
  "rayon",
- "rgb565",
  "zoom-sync-core",
 ]
 
