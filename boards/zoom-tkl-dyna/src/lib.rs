@@ -177,7 +177,7 @@ impl ZoomTklDyna {
     }
 
     /// Internal method to execute a packet and optionally read the response
-    fn execute(&mut self, packet: [u8; 32]) -> Result<()> {
+    fn execute(&mut self, packet: [u8; 33]) -> Result<()> {
         self.device.write(&packet)?;
         // Read response if available
         let _ = self.device.read_timeout(&mut self.buf, 100);
@@ -219,9 +219,9 @@ impl ZoomTklDyna {
     pub fn set_system_info(
         &mut self,
         cpu_temp: u8,
-        gpu_temp: u32,
+        gpu_temp: u16,
         download_rate: f32,
-        gpu_fan_speed: u32,
+        gpu_fan_speed: u16,
     ) -> Result<()> {
         let mut gpu_fan_speed_adjusted = gpu_fan_speed;
         if gpu_fan_speed >= 10000 {
@@ -420,6 +420,12 @@ impl HasWeather for ZoomTklDyna {
 
 impl HasSystemInfo for ZoomTklDyna {
     fn set_system_info(&mut self, cpu: u8, gpu: u32, download: f32, fan_rpm: u32) -> Result<()> {
-        ZoomTklDyna::set_system_info(self, cpu, gpu, download, fan_rpm)
+        ZoomTklDyna::set_system_info(
+            self,
+            cpu,
+            gpu.try_into().unwrap_or(u16::MAX),
+            download,
+            fan_rpm.try_into().unwrap_or(u16::MAX),
+        )
     }
 }
