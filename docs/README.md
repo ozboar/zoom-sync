@@ -10,6 +10,7 @@
   * [`zoom-sync set weather`↴](#zoom-sync-set-weather)
   * [`zoom-sync set system`↴](#zoom-sync-set-system)
   * [`zoom-sync set screen`↴](#zoom-sync-set-screen)
+  * [`zoom-sync set theme`↴](#zoom-sync-set-theme)
   * [`zoom-sync set image`↴](#zoom-sync-set-image)
   * [`zoom-sync set image clear`↴](#zoom-sync-set-image-clear)
   * [`zoom-sync set gif`↴](#zoom-sync-set-gif)
@@ -18,9 +19,9 @@
 
 ## zoom-sync
 
-Cross-platform utility for syncing zoom65v3 screen modules
+Cross-platform utility for syncing Zoom keyboard screen modules
 
-**Usage**: **`zoom-sync`** \[**`--auto`** | **`--zoom65v3`**\] \[_`COMMAND ...`_\]
+**Usage**: **`zoom-sync`** \[**`--auto`** | **`--zoom65v3`** | **`--zoom-tkl-dyna`**\] \[_`COMMAND ...`_\]
 
 
 
@@ -29,6 +30,8 @@ Cross-platform utility for syncing zoom65v3 screen modules
   Auto-detect connected board (default)
 - **`    --zoom65v3`** &mdash; 
   Zoom65 V3
+- **`    --zoom-tkl-dyna`** &mdash; 
+  Zoom TKL Dyna
 
 
 
@@ -64,6 +67,8 @@ Set specific options on the keyboard
 
 **Usage**: **`zoom-sync`** **`set`** _`COMMAND ...`_
 
+
+
 **Available options:**
 - **`-h`**, **`--help`** &mdash; 
   Prints help information
@@ -79,6 +84,8 @@ Set specific options on the keyboard
   Set system info
 - **`screen`** &mdash; 
   Change current screen
+- **`theme`** &mdash; 
+  Set screen theme colors
 - **`image`** &mdash; 
   Upload static image
 - **`gif`** &mdash; 
@@ -143,7 +150,7 @@ Set weather data
 
 Set system info
 
-**Usage**: **`zoom-sync`** **`set`** **`system`** \[**`-f`**\] (\[**`--cpu`**=_`LABEL`_\] | **`-c`**=_`TEMP`_) (\[**`--gpu`**=_`ID`_\] | **`-g`**=_`TEMP`_) \[**`-d`**=_`ARG`_\]
+**Usage**: **`zoom-sync`** **`set`** **`system`** \[**`-f`**\] (\[**`--cpu`**=_`LABEL`_\] | **`-c`**=_`TEMP`_) (\[**`--gpu`**=_`ID`_\] | \[**`--gpu-temp`**=_`TEMP`_\] \[**`--gpu-fanspeed`**=_`FAN-SPEED`_\]) \[**`-d`**=_`SPEED`_\]
 
 **Available options:**
 - **`-f`**, **`--farenheit`** &mdash; 
@@ -158,9 +165,11 @@ Set system info
   GPU device id to fetch temperature data for (nvidia only)
    
   [default: 0]
-- **`-g`**, **`--gpu-temp`**=_`TEMP`_ &mdash; 
-  Manually set GPU temperature
-- **`-d`**, **`--download`**=_`ARG`_ &mdash; 
+- **`    --gpu-temp`**=_`TEMP`_ &mdash; 
+  Manually set GPU stats, temperature. Disables automatic fetching.
+- **`    --gpu-fanspeed`**=_`FAN-SPEED`_ &mdash; 
+  Manually set GPU stats, fanspeed. Disables automatic fetching.
+- **`-d`**, **`--download`**=_`SPEED`_ &mdash; 
   Manually set download speed
 - **`-h`**, **`--help`** &mdash; 
   Prints help information
@@ -170,21 +179,44 @@ Set system info
 
 Change current screen
 
-**Usage**: **`zoom-sync`** **`set`** **`screen`** (**`-s`**=_`POSITION`_ | **`--up`** | **`--down`** | **`--switch`**)
+**Usage**: **`zoom-sync`** **`set`** **`screen`** (**`-s`**=_`POSITION`_ | **`--up`** | **`--down`** | **`--switch`** | **`--reset`**)
 
 **Screen options:**
 - **`-s`**, **`--screen`**=_`POSITION`_ &mdash; 
-  Reset and move the screen to a specific position. [cpu|gpu|download|time|weather|meletrix|zoom65|image|gif|battery]
+  Reset and move the screen to a specific position. Zoom65v3: [cpu|gpu|download|time|weather|meletrix|zoom65|image|gif|battery]
 - **`    --up`** &mdash; 
   Move the screen up
 - **`    --down`** &mdash; 
   Move the screen down
 - **`    --switch`** &mdash; 
   Switch the screen offset
+- **`    --reset`** &mdash; 
+  Reset the screen to default position
 
 
 
 **Available options:**
+- **`-h`**, **`--help`** &mdash; 
+  Prints help information
+
+
+## zoom-sync set theme
+
+Set screen theme colors
+
+**Usage**: **`zoom-sync`** **`set`** **`theme`** \[**`-b`**=_`COLOR`_\] \[**`-c`**=_`COLOR`_\] \[**`-i`**=_`ID`_\]
+
+**Available options:**
+- **`-b`**, **`--bg`**=_`COLOR`_ &mdash; 
+  Background color (hex: #RRGGBB or #RGB)
+   
+  [default: #000000]
+- **`-c`**, **`--color`**=_`COLOR`_ &mdash; 
+  Font/foreground color (hex: #RRGGBB or #RGB)
+   
+  [default: #ffffff]
+- **`-i`**, **`--id`**=_`ID`_ &mdash; 
+  Theme preset ID
 - **`-h`**, **`--help`** &mdash; 
   Prints help information
 

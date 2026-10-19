@@ -46,13 +46,13 @@ pub enum WeatherArgs {
         wmo: u8,
         /// Current temperature
         #[bpaf(positional("CUR"))]
-        current: u8,
+        current: i16,
         /// Minumum temperature
         #[bpaf(positional("MIN"))]
-        min: u8,
+        min: i16,
         /// Maximum temperature
         #[bpaf(positional("MAX"))]
-        max: u8,
+        max: i16,
     },
 }
 
@@ -147,9 +147,9 @@ pub async fn apply_weather(
                             .set_weather(
                                 data.wmo,
                                 data.is_day,
-                                data.current as u8,
-                                data.min as u8,
-                                data.max as u8,
+                                data.current.round() as i16,
+                                data.min.round() as i16,
+                                data.max.round() as i16,
                             )
                             .map_err(|e| format!("failed to set weather: {e}"))?;
                         println!(

@@ -136,7 +136,7 @@ impl FromStr for ScreenPosition {
             "time" | "t" => Ok(Self::Time(TimeOffset::Time)),
             "weather" | "w" => Ok(Self::Time(TimeOffset::Weather)),
             "meletrix" | "m" => Ok(Self::Logo(LogoOffset::Meletrix)),
-            "zoom65" | "z" => Ok(Self::Logo(LogoOffset::Zoom65)),
+            "zoom" | "z" => Ok(Self::Logo(LogoOffset::Zoom)),
             "image" | "i" => Ok(Self::Logo(LogoOffset::Image)),
             "gif" | "g" => Ok(Self::Logo(LogoOffset::Gif)),
             "battery" | "b" => Ok(Self::Battery),
@@ -182,7 +182,7 @@ impl TimeOffset {
 pub enum LogoOffset {
     #[default]
     Meletrix = 0,
-    Zoom65 = 1,
+    Zoom = 1,
     Image = 2,
     Gif = 3,
 }
