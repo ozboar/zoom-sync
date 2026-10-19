@@ -417,8 +417,7 @@ impl HasWeather for ZoomTklDyna {
         low: i16,
         high: i16,
     ) -> Result<()> {
-        let icon = WeatherIcon::from_wmo(wmo, is_day)
-            .ok_or(BoardError::CommandFailed("unknown WMO code"))?;
+        let icon = WeatherIcon::from_wmo(wmo, is_day);
         ZoomTklDyna::set_weather(self, icon, current, low, high)
     }
 }
