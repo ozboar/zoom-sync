@@ -22,6 +22,10 @@ pub mod consts {
     pub const ZOOM65_PRODUCT_ID: u16 = 0x287F;
     pub const ZOOM65_USAGE_PAGE: u16 = 65376;
     pub const ZOOM65_USAGE: u16 = 97;
+    /// The 2.4 GHz receiver keeps a generic identity, so it is only used when asked for by name
+    pub const RECEIVER_VENDOR_ID: u16 = 0x0C45;
+    pub const RECEIVER_PRODUCT_ID: u16 = 0xFEFE;
+    pub const RECEIVER_RAW_INTERFACE: i32 = 3;
 }
 
 /// Static board info for detection
@@ -107,15 +111,22 @@ impl Zoom65v3 {
     pub fn open() -> Result<Self> {
         API.write().unwrap().refresh_devices()?;
         let api = API.read().unwrap();
+        let raw = |d: &&hidapi::DeviceInfo| {
+            d.usage_page() == consts::ZOOM65_USAGE_PAGE && d.usage() == consts::ZOOM65_USAGE
+        };
+        let wired = api.device_list().filter(raw).find(|d| {
+            d.vendor_id() == consts::ZOOM65_VENDOR_ID && d.product_id() == consts::ZOOM65_PRODUCT_ID
+        });
+        let receiver = || {
+            api.device_list().filter(raw).find(|d| {
+                d.vendor_id() == consts::RECEIVER_VENDOR_ID
+                    && d.product_id() == consts::RECEIVER_PRODUCT_ID
+                    && d.interface_number() == consts::RECEIVER_RAW_INTERFACE
+            })
+        };
         let this = Self {
-            device: api
-                .device_list()
-                .find(|d| {
-                    d.vendor_id() == consts::ZOOM65_VENDOR_ID
-                        && d.product_id() == consts::ZOOM65_PRODUCT_ID
-                        && d.usage_page() == consts::ZOOM65_USAGE_PAGE
-                        && d.usage() == consts::ZOOM65_USAGE
-                })
+            device: wired
+                .or_else(receiver)
                 .ok_or(BoardError::DeviceNotFound)?
                 .open_device(&api)?,
             buf: [0u8; 64],
