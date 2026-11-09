@@ -97,6 +97,18 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
         gtk::main_iteration_do(false);
     }
 
+    // Initialize NSApplication (required for tray-icon/muda on macOS)
+    #[cfg(target_os = "macos")]
+    let ns_app = {
+        use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+        let mtm = objc2_foundation::MainThreadMarker::new()
+            .ok_or("tray must run on the main thread")?;
+        let app = NSApplication::sharedApplication(mtm);
+        app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+        app.finishLaunching();
+        app
+    };
+
     // Process Win32 messages to render tray icon before entering main loop
     #[cfg(target_os = "windows")]
     unsafe {
@@ -144,7 +156,9 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
         std::pin::Pin<Box<tokio_stream::Timeout<evdev::EventStream>>>,
     > = None;
     #[cfg(not(target_os = "linux"))]
-    let mut reactive_stream: Option<futures::stream::Empty<()>> = None;
+    let mut reactive_stream: Option<
+        futures::stream::Empty<Result<std::io::Result<()>, ()>>,
+    > = None;
 
     let mut is_reactive_running = false;
 
@@ -156,6 +170,22 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                 #[cfg(target_os = "linux")]
                 while gtk::events_pending() {
                     gtk::main_iteration_do(false);
+                }
+
+                // Process AppKit events (required for tray-icon/muda on macOS)
+                #[cfg(target_os = "macos")]
+                unsafe {
+                    use objc2_app_kit::NSEventMask;
+                    use objc2_foundation::NSDefaultRunLoopMode;
+                    let past = objc2_foundation::NSDate::distantPast();
+                    while let Some(event) = ns_app.nextEventMatchingMask_untilDate_inMode_dequeue(
+                        NSEventMask::Any,
+                        Some(&past),
+                        NSDefaultRunLoopMode,
+                        true,
+                    ) {
+                        ns_app.sendEvent(&event);
+                    }
                 }
 
                 // Process Win32 messages (required for tray-icon/muda on Windows)
@@ -400,7 +430,7 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                         Err(e) => {
                             eprintln!("weather update failed: {e}");
                             // Check if board disconnected
-                            if e.to_string().contains("device") {
+                            if e.to_string().to_lowercase().contains("device") {
                                 handle_disconnect(&mut board, &mut state, &menu_items);
                             }
                         }
@@ -420,7 +450,7 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                             None,
                         ) {
                             eprintln!("system update failed: {e}");
-                            if e.to_string().contains("device") {
+                            if e.to_string().to_lowercase().contains("device") {
                                 handle_disconnect(&mut board, &mut state, &menu_items);
                             }
                         }
@@ -433,7 +463,7 @@ async fn async_tray_app(board_kind: BoardKind) -> Result<(), Box<dyn Error>> {
                 if let Some(ref mut b) = board {
                     if let Err(e) = crate::apply_time(b.as_mut(), state.config.general.use_12hr_time) {
                         eprintln!("time sync failed: {e}");
-                        if e.to_string().contains("device") {
+                        if e.to_string().to_lowercase().contains("device") {
                             handle_disconnect(&mut board, &mut state, &menu_items);
                         }
                     }
