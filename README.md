@@ -171,7 +171,7 @@ zoom-sync set time
 - [x] Poll and reconnect to keyboard
 - [x] CLI arguments
 - [x] Update intervals for each value
-- [x] Simulate reactive gif mode (linux)
+- [x] Simulate reactive gif mode (linux, macOS)
 - [x] System tray menu
 - [ ] Package releases
   - [x] Crates.io

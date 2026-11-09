@@ -56,6 +56,6 @@ pub struct TrayState {
     pub connection: ConnectionStatus,
     pub current_screen: Option<String>,
     pub config: Config,
-    /// Whether reactive mode is currently active (Linux only)
+    /// Whether reactive mode is currently active (Linux and macOS)
     pub reactive_active: bool,
 }
