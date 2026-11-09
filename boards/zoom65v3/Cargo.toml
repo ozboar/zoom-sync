@@ -8,6 +8,6 @@ license = "MIT"
 edition = "2021"
 
 [dependencies]
-zoom-sync-core = { path = "../core" }
+zoom-sync-core = { path = "../core", version = "0.1" }
 hidapi = { workspace = true }
 chrono = { workspace = true }

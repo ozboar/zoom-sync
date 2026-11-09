@@ -3,7 +3,7 @@
 use std::error::Error;
 use std::sync::LazyLock;
 
-use either::Either;
+use either::Either::{self, Left, Right};
 use nvml_wrapper::enum_wrappers::device::TemperatureSensor;
 use nvml_wrapper::{Device, Nvml};
 use sysinfo::{Component, Components};
@@ -40,28 +40,32 @@ pub enum GpuMode {
         u32,
     ),
     Manual(
-        /// Manually set GPU temperature
-        #[bpaf(short('g'), long("gpu-temp"), argument("TEMP"))]
-        u8,
+        /// Manually set GPU stats, temperature. Disables automatic fetching.
+        #[bpaf(long("gpu-temp"), argument("TEMP"), fallback(0))]
+        u32,
+        /// Manually set GPU stats, fanspeed. Disables automatic fetching.
+        #[bpaf(long("gpu-fanspeed"), argument("FAN-SPEED"), fallback(0))]
+        u32,
     ),
 }
 
 impl GpuMode {
-    pub fn either(&self) -> Either<GpuTemp, u8> {
+    pub fn either(&self) -> Either<GpuStats, (u32, u32)> {
         match self {
-            GpuMode::Id(i) => Either::Left(GpuTemp::new(*i)),
-            GpuMode::Manual(v) => Either::Right(*v),
+            GpuMode::Id(i) => Either::Left(GpuStats::new(*i)),
+            GpuMode::Manual(temp, fanspeed) => Either::Right((*temp, *fanspeed)),
         }
     }
 }
 
 /// Helper struct to track gpu temperature
-pub struct GpuTemp {
+pub struct GpuStats {
     maybe_device: Option<Device<'static>>,
 }
 
-impl GpuTemp {
-    /// Construct a new gpu temperature monitor, optionally selecting by device index
+impl GpuStats {
+    /// Construct a new gpu monitor, optionally selecting by device index.
+    /// Handles both gpu temp and gpu fan speeds.
     pub fn new(index: u32) -> Self {
         static NVML: LazyLock<Option<Nvml>> = LazyLock::new(|| {
             let nvml = Nvml::init().ok();
@@ -83,17 +87,24 @@ impl GpuTemp {
     }
 
     // Refresh and poll the current temperature
-    pub fn get_temp(&self, farenheit: bool) -> Option<u8> {
+    pub fn get_temp(&self, farenheit: bool) -> Option<u32> {
         self.maybe_device
             .as_ref()
             .and_then(|d| d.temperature(TemperatureSensor::Gpu).ok())
             .map(|v| {
                 if farenheit {
-                    (v as f64 * 9. / 5. + 32.) as u8
+                    (v as f64 * 9. / 5. + 32.) as u32
                 } else {
-                    v as u8
+                    v
                 }
             })
+    }
+
+    // Refresh and poll the current GPU fanspeed
+    pub fn get_fanspeed(&self) -> Option<u32> {
+        self.maybe_device
+            .as_ref()
+            .and_then(|d| d.fan_speed_rpm(0).ok())
     }
 }
 
@@ -171,7 +182,7 @@ pub fn apply_system(
     board: &mut dyn Board,
     farenheit: bool,
     cpu: &mut Either<CpuTemp, u8>,
-    gpu: &Either<GpuTemp, u8>,
+    gpu: &Either<GpuStats, (u32, u32)>,
     download: Option<f32>,
 ) -> Result<(), Box<dyn Error>> {
     let system_info = board
@@ -188,23 +199,44 @@ pub fn apply_system(
         cpu_temp = 99;
     }
 
-    let mut gpu_temp = gpu
+    let gpu_temp_pull = gpu
         .as_ref()
         .map_left(|g| g.get_temp(farenheit).unwrap_or_default())
-        .map_right(|v| *v)
-        .into_inner();
+        .map_right(|v| *v);
+
+    let gpu_fan_speed_pull = gpu
+        .as_ref()
+        .map_left(|g| g.get_fanspeed().unwrap_or_default())
+        .map_right(|v| *v);
+
+    let mut gpu_temp: u32;
+
+    match gpu_temp_pull {
+        Left(temp) => {
+            gpu_temp = temp;
+        },
+        Right((temp, _)) => {
+            gpu_temp = temp;
+        },
+    }
+
     if gpu_temp >= 100 {
-        eprintln!("warning: actual gpu temerature at {gpu_temp}. clamping to 99");
+        eprintln!("warning: actual gpu temperature at {gpu_temp}. clamping to 99");
         gpu_temp = 99;
     }
+
+    let gpu_fan_speed: u32 = match gpu_fan_speed_pull {
+        Left(fanspeed) => fanspeed,
+        Right((_, fanspeed)) => fanspeed,
+    };
 
     let download = download.unwrap_or_default();
 
     system_info
-        .set_system_info(cpu_temp, gpu_temp, download)
+        .set_system_info(cpu_temp, gpu_temp, download, gpu_fan_speed)
         .map_err(|e| format!("failed to set system info: {e}"))?;
     println!(
-        "updated system info {{ cpu_temp: {cpu_temp}, gpu_temp: {gpu_temp}, download: {download} }}"
+        "updated system info {{ cpu_temp: {cpu_temp}, gpu_temp: {gpu_temp}, download: {download}, gpu_fan_speed: {gpu_fan_speed} }}"
     );
 
     Ok(())

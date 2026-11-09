@@ -83,7 +83,7 @@ impl MenuItems {
         // Update connection status and check features
         let (status_text, has_screen, has_media) = match board.as_mut() {
             Some(b) => {
-                let has_screen = b.as_screen().is_some();
+                let has_screen = b.as_screen_pos().is_some();
                 let has_media = b.as_image().is_some() || b.as_gif().is_some();
                 (
                     format!("{} Connected", b.info().name),
